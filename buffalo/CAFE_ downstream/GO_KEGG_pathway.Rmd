@@ -10,6 +10,15 @@ fig_caption: yes
 toc: yes
 ---
 
+```{r}
+#------------------------------------------------------
+# Program name: GO_KEGG_pathway.Rmd
+# Objective: This script collect the gene families from CAFE results and match for gene by using human as a representative, and do GO,KEGG and Reactome enrichment analysis.
+# Author: Kelly Ren
+# Email add: kellyDREN@gmail.com
+#------------------------------------------------------
+```
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
