@@ -66,206 +66,7 @@ human_ALL_entrezID <- genesGR %>%
   unique() 
 ```
 
-# 1_results positive select
-## human
-
-```{r}
-results_Positive_select <- read_csv("results_Positive_select.csv")%>%
-  as.data.frame()%>%
-  subset(species %in% "Hsap")
-```
-
-```{r}
-results_Positive_select$ToEntrez <- results_Positive_select$ToEntrez%>%as.character()
-results_Positive_select <- results_Positive_select%>%
-  left_join(Genes, by = c("ToEntrez" = "entrezid"))%>%
-  subset(gene_biotype %in% "protein_coding")
-```
-
-#### GO
-```{r GO pathway}
-goRes <- goana(results_Positive_select$ToEntrez, human_ALL_entrezID, species = "Hs")
-```
-
-```{r}
-human_goRes <- goRes%>%
-  rownames_to_column("GO_ID")%>%
-  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
-  subset(fdr < 0.01)%>%
-  arrange(fdr)
-
-human_goRes%>%
-  dim()
-
-human_goRes$GO_ID%>%
-  as.data.frame()
-```
-
-#### KEGG
-```{r  KEGG pathway}
-keggRes <- kegga(results_Positive_select$ToEntrez, human_ALL_entrezID, species = "Hs") # for KEGG pathway
-
-human_keggRes <- keggRes%>% 
-  rownames_to_column("KEGG_ID")%>%
-  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
-  subset(fdr < 0.05)%>%
-  arrange(fdr)
-
-human_keggRes
-```
-
-### Reactome
-
-```{r}
-sigSite_enrichPath <- enrichPathway(gene=results_Positive_select$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300)
-
-cnetplot(sigSite_enrichPath, node_label = 'none')
-```
-
-```{r}
-sigSite_enrichGO <- enrichGO(gene=results_Positive_select$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300,OrgDb='org.Hs.eg.db')
-
-cnetplot(sigSite_enrichGO, node_label = 'none')
-```
-
-## cattle
-
-```{r}
-results_Positive_select <- read_csv("results_Positive_select.csv")%>%
-  as.data.frame()%>%
-  subset(species %in% "Hbta")
-```
-
-
-```{r}
-ah <- read_rds("All_annotation.rds") 
-ensDb <- ah[["AH83145"]]
-ensDb
-```
-
-```{r}
-genesGR <- genes(ensDb)
-genesGR
-```
-
-```{r }
-cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
-mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
-
-Genes <- genesGR%>%
-  as.data.frame()
-Genes$entrezid <- Genes$entrezid%>%as.character()
-```
-
-
-```{r}
-results_Positive_select$ToEntrez <- results_Positive_select$ToEntrez%>%as.character()
-results_Positive_select <- results_Positive_select%>%
-  left_join(Genes, by = c("ToEntrez" = "entrezid"))%>%
-  subset(gene_biotype %in% "protein_coding")
-colnames(results_Positive_select) <- colnames(results_Positive_select)%>%gsub("ToEntrez","entrez",.)
-```
-
-
-```{r}
-cattle_ALL_entrezID <- genesGR %>% 
-  subset(!is.na(entrezid)) %>%
-  mcols() %>%
-  .[["entrezid"]] %>%
-  unlist() %>%
-  unique() 
-```
-
-```{r GO pathway}
-cattle_entrezID <- cattle_ALL_entrezID[cattle_ALL_entrezID %in% results_Positive_select$entrez]
-goRes <- goana(cattle_entrezID, cattle_ALL_entrezID, species = "Bt")
-```
-
-```{r}
-cattle_goRes <- goRes%>%
-  rownames_to_column("GO_ID")%>%
-  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
-  subset(fdr < 0.01)%>%
-  arrange(fdr)
-
-cattle_goRes%>%dim()
-
-cattle_goRes$GO_ID%>%
-  as.data.frame()
-```
-
-```{r  KEGG pathway}
-keggRes <- kegga(cattle_entrezID, cattle_ALL_entrezID, species = "Bt") # for KEGG pathway
-
-cattle_keggRes <- keggRes%>% 
-  rownames_to_column("KEGG_ID")%>%
-  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
-  subset(fdr < 0.05)%>%
-  arrange(fdr)
-
-cattle_keggRes$GO_ID%>%
-  as.data.frame()
-```
-
-# results positive select immune genes
-
-### all immune genes
-
-```{r}
-results_Positive_select_immune <- read_csv("results_Positive_select_immune.csv")%>%
-  as.data.frame()
-
-results_Positive_select_immune$gene_name%>%
-  unique()%>%
-  length() #410 immune genes
-
-results_Positive_select_immune$ToEntrez%>%
-  unique()
-
-```
-
-#### GO
-```{r}
-goRes <- goana(results_Positive_select_immune$ToEntrez, human_ALL_entrezID, species = "Hs")
-
-human_immune_goRes <- goRes%>%
-  rownames_to_column("GO_ID")%>%
-  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
-  subset(fdr < 0.01)%>%
-  arrange(fdr)
-
-human_immune_goRes%>%
-  dim()
-
-subset(human_immune_goRes, Ont %in% "BP")$GO_ID%>%
-  as.data.frame()
-```
-
-#### KEGG
-```{r  KEGG pathway}
-keggRes <- kegga(results_Positive_select_immune$ToEntrez, human_ALL_entrezID, species = "Hs") # for KEGG pathway
-
-human_immune_keggRes <- keggRes%>% 
-  rownames_to_column("KEGG_ID")%>%
-  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
-  subset(fdr < 0.01)%>%
-  arrange(fdr)
-human_immune_keggRes
-human_immune_keggRes$KEGG_ID%>%
-  gsub("path:hsa","hsa:",.)%>%
-  as.data.frame()
-```
-
-
-#### Reactome
-
-```{r}
-sigSite_enrichPath <- enrichPathway(gene=results_Positive_select_immune$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300)
-cnetplot(sigSite_enrichPath, node_label = 'none')
-```
-
-
-# 2_results cafe all genes
+# results cafe all genes
 
 ```{r}
 results_Gene_GL_PTHR <- read_csv("results_Gene_GL_PTHR.csv")%>%
@@ -284,7 +85,9 @@ results_Gene_GL_PTHR <- results_Gene_GL_PTHR[,2:7]%>%
   unique()
 
 colnames(results_Gene_GL_PTHR) <- colnames(results_Gene_GL_PTHR) %>%gsub("ToEntrez","entrezEntrez",.)
+```
 
+```{r}
 results_Gene_GL_PTHR$entrezEntrez%>%
   unique()%>%
   length()
@@ -293,11 +96,10 @@ results_Gene_GL_PTHR$PANTHER_ID%>%
   unique()%>%
   length()
 
+goRes <- goana(results_Gene_GL_PTHR$entrezEntrez, human_ALL_entrezID, species = "Hs")
 ```
 #### GO
 ```{r}
-goRes <- goana(results_Gene_GL_PTHR$entrezEntrez, human_ALL_entrezID, species = "Hs")
-
 human_goRes <- goRes%>%
   rownames_to_column("GO_ID")%>%
   mutate(fdr = p.adjust(P.DE, "fdr"))%>%
@@ -325,15 +127,7 @@ human_keggRes$KEGG_ID%>%
   gsub("path:hsa","hsa:",.)%>%
   as.data.frame()
 ```
-#### Reactome
-
-```{r}
-sigSite_enrichPath <- enrichPathway(gene=results_Gene_GL_PTHR$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300)
-cnetplot(sigSite_enrichPath, node_label = 'gene')
-```
-
 # results cafe immune genes
-
 
 ### all immune genes
 ```{r}
@@ -384,23 +178,44 @@ human_immune_keggRes$KEGG_ID%>%
   gsub("path:hsa","hsa:",.)%>%
   as.data.frame()
 ```
-
 #### Reactome
 
 ```{r}
-results_Gene_GL_PTHR_immune_enrichPath <- enrichPathway(gene=results_Gene_GL_PTHR_immune$Entrez_ID, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300)
+geneList <- list(X1 = results_Gene_GL_PTHR$ToEntrez,
+                 X2 = results_Gene_GL_PTHR_immune$ToEntrez)
+Pathway_Cluster <- compareCluster(geneList, fun="enrichPathway", pAdjustMethod="fdr", qvalueCutoff=0.01)
+GO_Cluster <- compareCluster(geneList, fun="enrichGO", pAdjustMethod="fdr", qvalueCutoff=0.01, OrgDb='org.Hs.eg.db')
+summary(Pathway_Cluster)
+summary(GO_Cluster)
 
-summary(results_Gene_GL_PTHR_immune_enrichPath)
-dim(summary(results_Gene_GL_PTHR_immune_enrichPath))
-cnetplot(results_Gene_GL_PTHR_immune_enrichPath, categorySize="pvalue", node_label = 'category', showCategory = 5)
+
+
+plot <- cnetplot(Pathway_Cluster, node_label = 'category', colorEdge = T, categorySize="pvalue")
+plot[[1]]$layers[[1]]$aes_params$size =10
+
+cnetplot(Pathway_Cluster, node_label = 'category', colorEdge = T, categorySize="pvalue")
+
+cnetplot(Pathway_Cluster, node_label = 'none', colorEdge = T, categorySize="pvalue")
+
 ```
 
 ```{r}
-results_Gene_GL_PTHR_immune_enrichGO <- enrichGO(gene=results_Gene_GL_PTHR_immune$Entrez_ID, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300, OrgDb='org.Hs.eg.db')
-
-summary(results_Gene_GL_PTHR_immune_enrichGO)
-cnetplot(results_Gene_GL_PTHR_immune_enrichGO, categorySize="pvalue", node_label = 'category')
+sigSite_enrichPath <- enrichPathway(gene=results_Gene_GL_PTHR$entrezEntrez, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300)
+cnetplot(sigSite_enrichPath, categorySize="pvalue", node_label = 'category')
 ```
+
+```{r}
+sigSite_enrichPath <- enrichPathway(gene=results_Gene_GL_PTHR_immune$entrezEntrez, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300)
+cnetplot(sigSite_enrichPath, categorySize="pvalue", node_label = 'category')
+```
+
+```{r}
+sigSite_enrichPath <- enrichGO(gene=results_Gene_GL_PTHR$entrezEntrez, pAdjustMethod="fdr", qvalueCutoff=0.01, readable=T, minGSSize = 3, maxGSSize = 300, OrgDb='org.Hs.eg.db')
+
+summary(sigSite_enrichPath)
+cnetplot(sigSite_enrichPath, categorySize="pvalue", node_label = 'category')
+```
+
 
 # Appendix
 
