@@ -11,7 +11,7 @@ output: html_document
 # Objective: this script follows from buffalo_NextGenAssembly_MHC2.R
 #           but the difference is the tblastn results table
 #           will be used for a more detailed analysis
-# Author: Lloyd Low
+# Author: Lloyd Low and Kelly Ren
 # Email add: lloydlow@hotmail.com
 #------------------------------------------------------
 ```
@@ -285,7 +285,7 @@ cattle_ucd_Geneoverlap%>%
   length()
 ```
 
-#### protein_coding out of whole genome
+#### The length of protein coding sequence out of whole genome
 ```{r}
 # no overlap
 test <- water_buffaloGRanges[unique(findOverlaps(water_buffaloGRanges, type = "any", select = "first"))]
@@ -366,7 +366,8 @@ human_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, spe
 human_Geneoverlap%>%
   length()
 ```
-#### protein_coding out of whole genome
+
+#### The length of protein coding sequence out of whole genome
 
 ```{r}
 test <- humanGRanges[unique(findOverlaps(humanGRanges, type = "any", select = "first"))]
@@ -761,4 +762,3 @@ ggplot2.histogram(data=spp_df_len1009_id90_cattle, xName= 'start', xtitle="Posit
 ggsave("cattle_retro_position.pdf",width=10, height=10,device="pdf", useDingbats=F)
 
 ```
-
