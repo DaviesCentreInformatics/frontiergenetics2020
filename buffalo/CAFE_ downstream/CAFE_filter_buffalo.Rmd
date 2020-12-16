@@ -1,5 +1,5 @@
 ---
-title: "Find immune genes"
+title: "The branch for buffalo"
 author: "Kelly Ren"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -13,6 +13,17 @@ toc: yes
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
+
+```{r}
+#------------------------------------------------------
+# Program name: CAFE_filter_buffalo.Rmd
+# Objective: this script find the specific branch for buffalo from the CAFE output and find the changed genes that specific to the branch. The GO and KEGG enrichment analysis was done base on those changed genes and immune genes respectively.
+# Author: Kelly Ren
+# Email add: KellyDREN@gmail.com
+#------------------------------------------------------
+```
+
+# Loading packages
 
 ```{r}
 library(ggplot2)
@@ -35,6 +46,26 @@ library(GenomicFeatures)
 ```
 
 # Find the branch of Bbub
+
+## The test result in specifc for few lines
+
+```{r}
+# read a test result only cotain few line, in which we know the gene evolution in buffalo for those families.
+report_runmodel1_test <- read.table("report_runmodel1_test.cafe")
+report_runmodel1_test <- subset(report_runmodel1_test, V3 < 0.05)
+dim(report_runmodel1_error)
+```
+
+```{r}
+filtered_cafe_input_all <- read_delim("filtered_cafe_input_all.txt", delim = "\t")%>%
+  as.data.frame()
+
+# Confirm the evoluted families in Bbub
+subset(filtered_cafe_input_all,FAMILY %in% Bbub_report_runmodel1_error$X1)
+# Column 4 is the Bbub
+```
+
+## The whole result in specifc for few lines
 ```{r}
 report_runmodel1_error <- read.table("report_runmodel1_error.cafe")
 report_runmodel1_error <- subset(report_runmodel1_error, V3 < 0.05)
@@ -46,27 +77,16 @@ report_runmodel1_error[,c(1,3,4)]%>%write_csv("report_runmodel1_error.csv")
 ```
 
 ```{r}
-report_runmodel1_test <- read.table("report_runmodel1_test.cafe")
-report_runmodel1_test <- subset(report_runmodel1_test, V3 < 0.05)
-dim(report_runmodel1_error)
-```
-
-```{r}
 Bbub_report_runmodel1_error <- read_delim("report_runmodel1_error.txt", col_names = F,delim = " ")%>%
   as.data.frame()%>%
   subset(X6 < 0.05)
 
-# Branch 4 is the Bbub
 
+# Check few known gene families with sinificance in buffalo to confim.
 Bbub_report_runmodel1_error%>%subset(X1 %in% "PTHR16675")
 Bbub_report_runmodel1_error%>%subset(X1 %in% "PTHR19944")
 Bbub_report_runmodel1_error%>%subset(X1 %in% "PTHR11258")
 
-filtered_cafe_input_all <- read_delim("filtered_cafe_input_all.txt", delim = "\t")%>%
-  as.data.frame()
-
-# Confirm the evoluted families in Bbub
-subset(filtered_cafe_input_all,FAMILY %in% Bbub_report_runmodel1_error$X1)
 ```
 
 # match the gene ID for Bbub
