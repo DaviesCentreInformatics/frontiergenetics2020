@@ -5,7 +5,7 @@ These scripts have been used in paper "Adaptive signatures of river buffalo in p
 ## CAFE downstream analysis
 Three proesses have been done for the output of CAFE:
 1. Testing the different models in CAFE, and comfirm the best model to use.
-2. Inporting the CAFE results to do the GO and KEGG enrichment analysis.
+2. Inporting the CAFE results to do the GO, KEGG and Reactome enrichment analysis.
 3. Finding and test the branch specific p-values for river buffalo.
 
 ## MHC coordinates analysis
