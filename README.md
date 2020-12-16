@@ -9,6 +9,6 @@ Three proesses have been done for the output of CAFE:
 3. Finding and test the branch specific p-values for river buffalo.
 
 ## MHC coordinates analysis
-This script inpoted the blast results between Babesia ovata and other six species.            
+This script inpoted the blast results between Babesia ovata and other six species.
 Calculate and visualize the blast hit over the genes for each species.
 Also, the results have been compared to the manual curation for MHC gene family. 
