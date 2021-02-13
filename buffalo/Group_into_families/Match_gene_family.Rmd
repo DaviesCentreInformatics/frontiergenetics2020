@@ -1,0 +1,1123 @@
+---
+title: "Group the orthogroup into gene families"
+author: "Kelly Ren"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2: default
+bibliography: FinalthesisRef.bib
+link-citations: yes
+fig_caption: yes
+toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(ggplot2)
+library(easyGgplot2)
+library(magrittr)
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyverse)
+library(readxl)
+library(gtools)
+library(tibble)
+library(reshape2)
+library(data.table)
+'%!in%' <- function(x,y){!('%in%'(x,y))}
+```
+
+# Read a table of PTHR families and UniProtKB IDs matching
+
+```{r}
+# # Load the working directory
+# setwd("~/Documents/Kelly_2020/Research/Kelly_Buffalo_Paper/Kelly_buffalo_R")
+# 
+# # load the PANTHER version 15
+# PANTHER15 <- read.table("PANTHER15.txt", header = F)
+# 
+#  #                                                  V1
+#  #                                           PTHR10000
+#  #               >LISMO|Gene=CAD00341|UniProtKB=Q8Y515
+#  #               >STRCO|Gene=CAB44512|UniProtKB=Q9XAS3
+#  # >STAA8|EnsemblGenome=SAOUHSC_02831|UniProtKB=Q2FVA2
+#  #       >STRR6|EnsemblGenome=spr1125|UniProtKB=Q8DPK0
+#  #      >DICDI|dictyBase=DDB_G0277745|UniProtKB=Q86KT5
+# 
+# # remove everything before UniProtKB IDs
+# PANTHER15 <- lapply(c(1:length(PANTHER15$V1)), function(x){gsub(".*=","",PANTHER15$V1[x])})
+# 
+# # Change to single colum dataframe
+# PANTHER15 <- unlist(PANTHER15)%>%
+#   data.frame()%>%
+#   set_colnames("PTHR_UniProtKB")
+# 
+#  # PTHR_UniProtKB
+#  #      PTHR10000
+#  #         Q8Y515
+#  #         Q9XAS3
+#  #         Q2FVA2
+#  #         Q8DPK0
+#  #         Q86KT5
+# ```
+# 
+# ```{r}
+# # locate the PTHR family IDs
+# PTHR_rank <- PANTHER15$PTHR_UniProtKB%>%grep("PTHR",.)
+# 
+# # make a list names of PTHR ID and their UniProtKB
+# PTHR_UniProtKB_matchlist <- lapply(c(1:length(PTHR_rank)), function(x){
+#   if (x <= c(length(PTHR_rank)-1)){
+#     GAP <- (as.numeric(PTHR_rank[x+1]-PTHR_rank[x])-2)
+#  }else{
+#     GAP <- "-1"
+#   }
+#   if (GAP < 0){
+#     OUTPUT <- "NULL"
+#     OUTPUT
+#   }else{
+#     PANTHER15$PTHR_UniProtKB[(c(as.numeric(PTHR_rank[x])+1)):((c(as.numeric(PTHR_rank[x])+1))+GAP)] 
+#   }
+# })%>%
+#   set_names(PANTHER15$PTHR_UniProtKB[PTHR_rank])
+# 
+# # split into two columns of UniProtKB IDs and PANTHER IDs
+# PANTHER15 <- lapply(1:length(PTHR_UniProtKB_matchlist), FUN = function(x, object = PTHR_UniProtKB_matchlist){
+#   object[[x]]%>%
+#     as.data.frame()%>%
+#     set_colnames("UniProtKB")%>%
+#     mutate(PANTHER_ID = rep(names(object[x]), length(object[[x]])))
+# })%>%do.call("rbind",.)
+# 
+# # remove no matching
+# PTHR_UniProtKB <- subset(PANTHER15, UniProtKB %!in% "NULL")
+# 
+# # There are 15701 PANTHER families 
+# PTHR_UniProtKB$PANTHER_ID%>%unique%>%length() #15701
+# 
+# saveRDS(PTHR_UniProtKB,"PTHR_UniProtKB.rds")
+PTHR_UniProtKB <- read_rds("PTHR_UniProtKB.rds")
+head(PTHR_UniProtKB)
+```
+
+# Read the blast results
+## Human
+```{r}
+# Blast results of Hsap protein and UniProtKB
+blast_aa_Hsap <- read.table("blast_ID/blast_aa_Hsap.txt", header = F, skip = 5)%>%
+  set_colnames(c("query_id", "subject_id", "identity", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qcovs"))
+
+# 19326 seqs for human
+# total number of query 19264, 62 no blast results
+blast_aa_Hsap$query_id%>%
+  unique()%>%
+  length()
+
+# Select the top hit for sequences
+blast_aa_Hsap$species <- blast_aa_Hsap$subject_id%>%gsub(".*_","",.)
+
+# Subset the UniProtKB for human only
+blast_aa_Hsap_selected <- subset(blast_aa_Hsap, species %in% c("HUMAN"))
+blast_aa_Hsap_selected <- blast_aa_Hsap_selected%>%
+  arrange(desc(identity))
+blast_aa_Hsap_selected <- data.table(blast_aa_Hsap_selected, key = "query_id")
+list_blast_aa_Hsap_selected <- blast_aa_Hsap_selected[, head(.SD, 1), by=query_id]
+
+# All query_id should be unique in this table
+list_blast_aa_Hsap_selected$query_id%>%
+  duplicated()%>%
+  table()
+
+list_blast_aa_Hsap_selected$identity%>%max() 
+list_blast_aa_Hsap_selected$identity%>%min()
+
+# Distribution of the identity
+list_blast_aa_Hsap_selected$identity%>%
+  table()%>%
+  plot()
+
+# Distribution of the e value
+list_blast_aa_Hsap_selected$evalue%>%
+  table()%>%
+  plot()
+
+# Distribution of the query coverage
+list_blast_aa_Hsap_selected$qcovs%>%
+  table()%>%
+  plot()
+```
+
+```{r}
+# filter for e-value and query coverage
+list_blast_aa_Hsap_selected <- list_blast_aa_Hsap_selected%>%
+ subset(qcovs >= 70)%>%
+ subset(evalue < 1.0e-5)
+```
+
+```{r}
+Hsap_UniProtKB <- list_blast_aa_Hsap_selected[,c(1,2)]%>%
+  set_colnames(c("Hsap_ID", "UniProtKB"))
+
+Hsap_UniProtKB$UniProtKB <- Hsap_UniProtKB$UniProtKB%>%
+  gsub("sp\\|","",.)%>%
+  gsub("\\|.*","",.)
+```
+
+```{r}
+# Read a table contain the information of orthogroup and the seq in the orthogroups
+orthogroup_Hsap <- read.table("orthogroup_Hsap.txt", header = F)
+orthogroup_Hsap <- orthogroup_Hsap$V1%>%
+  as.data.frame()%>%
+  set_colnames("orthogroup_seq")
+```
+
+```{r}
+# change the table to two collumn 
+OG_rank <- orthogroup_Hsap$orthogroup_seq%>%grep("OG",.)
+
+ID_match <- lapply(c(1:length(OG_rank)), function(x){
+  if (x <= c(length(OG_rank) -1)){
+    GAP <- (as.numeric(OG_rank[x+1]-OG_rank[x])-2)
+  }else{
+    GAP <- "-1"
+  }
+  if (GAP < 0){
+    OUTPUT <- "NULL"
+    OUTPUT
+  }else{
+    orthogroup_Hsap$orthogroup_seq[(c(as.numeric(OG_rank[x])+1)):((c(as.numeric(OG_rank[x])+1))+GAP)] 
+  }
+})%>%set_names(orthogroup_Hsap$orthogroup_seq[OG_rank])
+
+orthogroup_Hsap <- lapply(1:length(ID_match), FUN = function(x, object = ID_match){
+  object[[x]]%>%
+    as.data.frame()%>%
+    set_colnames("Hsap_ID")%>%
+    mutate(orthogroup_ID = rep(names(object[x]), length(object[[x]])))
+})%>%
+  do.call("rbind",.)
+
+orthogroup_Hsap <- subset(orthogroup_Hsap, Hsap_ID %!in% "NULL")
+
+# There are 16842 orthogroups contain Hsap
+orthogroup_Hsap$orthogroup_ID%>%
+  unique()%>%
+  length()
+```
+
+```{r}
+# match the UniProtKB and PANTHER_ID
+match_table_Hsap <- orthogroup_Hsap%>%
+  left_join(Hsap_UniProtKB, by = "Hsap_ID")
+match_table_Hsap$UniProtKB <- match_table_Hsap$UniProtKB%>%
+  as.character()
+match_table_Hsap <- match_table_Hsap%>%
+  left_join(PTHR_UniProtKB, by = "UniProtKB")
+
+#     Hsap_ID orthogroup_ID UniProtKB PANTHER_ID
+#    3017_Hsap     OG0000000    P58876  PTHR23428
+#  440689_Hsap     OG0000000    Q5QNW6  PTHR23428
+#    8349_Hsap     OG0000000    Q16778  PTHR23428
+#  128312_Hsap     OG0000000    Q8N257  PTHR23428
+#    3018_Hsap     OG0000000    P33778  PTHR23428
+#    8347_Hsap     OG0000000    P62807  PTHR23428
+
+# pick the columns of orthogroup_ID and PANTHER_ID
+orthogroup_PTHRfam <- match_table_Hsap[c("orthogroup_ID","PANTHER_ID")]%>%
+  unique()%>%
+  drop_na()
+
+orthogroup_PTHRfam$orthogroup_ID%>%length()
+Hsap_orthogroup_PTHRfam <- orthogroup_PTHRfam
+```
+
+## Bos taurus
+
+```{r}
+# Blast results of Hbta protein and UniProtKB
+blast_aa_Hbta <- read.table("blast_ID/blast_aa_Hbta.txt", header = F)%>%
+  set_colnames(c("query_id", "subject_id", "identity", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qcovs"))
+
+# total number of query 16937
+blast_aa_Hbta$query_id%>%
+  unique()%>%
+  length()
+
+# Select the top hit for sequences
+blast_aa_Hbta$species <- blast_aa_Hbta$subject_id%>%gsub(".*_","",.)
+
+# Subset the UniProtKB for cattle only
+blast_aa_Hbta_selected <- subset(blast_aa_Hbta, species %in% c("BOVIN"))
+
+# Rank by the identity
+blast_aa_Hbta_selected <- blast_aa_Hbta_selected%>%
+  arrange(desc(identity))
+blast_aa_Hbta_selected <- data.table(blast_aa_Hbta_selected, key = "query_id")
+list_blast_aa_Hbta_selected <- blast_aa_Hbta_selected[, head(.SD, 1), by=query_id]
+
+# All query_id should be unique in this table
+list_blast_aa_Hbta_selected$query_id%>%
+  duplicated()%>%
+  table()
+
+list_blast_aa_Hbta_selected$identity%>%max() 
+list_blast_aa_Hbta_selected$identity%>%min()
+
+# Distribution of the identity
+list_blast_aa_Hbta_selected$identity%>%
+  table()%>%
+  plot()
+
+# Distribution of the e value
+list_blast_aa_Hbta_selected$evalue%>%
+  table()%>%
+  plot()
+
+# Distribution of the query coverage
+list_blast_aa_Hbta_selected$qcovs%>%
+  table()%>%
+  plot()
+```
+
+```{r}
+# filter for e-value and query coverage
+list_blast_aa_Hbta_selected <- list_blast_aa_Hbta_selected%>%
+subset(qcovs >= 70)%>%
+subset(evalue < 1.0e-5)
+
+list_blast_aa_Hbta_selected$identity%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Hbta_selected$evalue%>%
+  table()%>%
+  plot()
+```
+
+
+```{r}
+ Hbta_UniProtKB <- list_blast_aa_Hbta_selected[,c(1,2)]%>%
+  set_colnames(c("Hbta_ID", "UniProtKB"))
+ 
+ Hbta_UniProtKB$UniProtKB <- Hbta_UniProtKB$UniProtKB%>%
+   gsub("sp\\|","",.)%>%
+   gsub("\\|.*","",.)
+```
+
+```{r}
+# Read a table contain the information of orthogroup and the seq in the orthogroups
+orthogroup_Hbta <- read.table("orthogroup_Hbta.txt", header = F)
+orthogroup_Hbta <- orthogroup_Hbta$V1%>%
+  as.data.frame()%>%
+  set_colnames("orthogroup_seq")
+```
+
+```{r}
+# change the table to two collumn 
+OG_rank <- orthogroup_Hbta$orthogroup_seq%>%
+  grep("OG",.)
+
+ID_match <- lapply(c(1:length(OG_rank)), function(x){
+  if (x <= c(length(OG_rank)-1)){
+    GAP <- (as.numeric(OG_rank[x+1]-OG_rank[x])-2)
+  }else{
+    GAP <- "-1"
+  }
+  if (GAP < 0){
+    OUTPUT <- "NULL"
+    OUTPUT
+  }else{
+    orthogroup_Hbta$orthogroup_seq[(c(as.numeric(OG_rank[x])+1)):((c(as.numeric(OG_rank[x])+1))+GAP)] 
+  }
+})%>%set_names(orthogroup_Hbta$orthogroup_seq[OG_rank])
+
+orthogroup_Hbta <- lapply(1:length(ID_match), FUN = function(x, object = ID_match){
+  object[[x]]%>%
+    as.data.frame()%>%
+    set_colnames("Hbta_ID")%>%
+    mutate(orthogroup_ID = rep(names(object[x]), length(object[[x]])))
+})%>%
+  do.call("rbind",.)
+
+orthogroup_Hbta <- subset(orthogroup_Hbta, Hbta_ID %!in% "NULL")
+
+# There are 17736 orthogroups contain Hbta
+orthogroup_Hbta$orthogroup_ID%>%unique()%>%length()
+```
+
+```{r}
+c(orthogroup_Hsap$orthogroup_ID, orthogroup_Hbta$orthogroup_ID)%>%unique()%>%length()
+
+# No blast results seq
+subset(orthogroup_Hbta, Hbta_ID %in% setdiff(orthogroup_Hbta$Hbta_ID,blast_aa_Hbta$query_id%>%unique()))%>%dim()
+```
+
+```{r}
+match_table_Hbta <- orthogroup_Hbta%>%
+  left_join(Hbta_UniProtKB, by = "Hbta_ID")
+match_table_Hbta$UniProtKB <- match_table_Hbta$UniProtKB%>%as.character()
+match_table_Hbta <- match_table_Hbta%>%
+  left_join(PTHR_UniProtKB)
+
+orthogroup_PTHRfam <- match_table_Hbta[c("orthogroup_ID","PANTHER_ID")]%>%
+  unique()%>%
+  drop_na()
+
+orthogroup_PTHRfam$orthogroup_ID%>%length()
+Hbta_orthogroup_PTHRfam <- orthogroup_PTHRfam
+```
+
+```{r}
+# check between human and Hbta
+Hsap_orthogroup_PTHRfam%>%head()
+dim(Hsap_orthogroup_PTHRfam)
+
+Hbta_orthogroup_PTHRfam%>%head()
+dim(Hbta_orthogroup_PTHRfam)
+```
+
+```{r}
+ALL_orthogroup_PTHRfam <- rbind(Hsap_orthogroup_PTHRfam,Hbta_orthogroup_PTHRfam)
+
+rbind(Hsap_orthogroup_PTHRfam,Hbta_orthogroup_PTHRfam)%>%
+  unique()%>%dim()
+```
+
+# ALL orthogroup PTHR match
+## fix duplicated PTHRfam for the same orthogroup
+```{r}
+# Here we calculate the propotion for each orthogroup_ID for familis and pick the orthogroup_ID with the highest propotion for that family.
+
+ALL_orthogroup_PTHRfam[ALL_orthogroup_PTHRfam$orthogroup_ID%>%duplicated(),]%>%extract2("orthogroup_ID")%>%unique()%>%length()
+ # Duplicate mapping exist, due to bad alignment (5698)
+
+dup_ALL_orthogroup_PTHRfam <- ALL_orthogroup_PTHRfam[ALL_orthogroup_PTHRfam$orthogroup_ID%>%duplicated(),]
+
+match_table_species <- rbind(set_colnames(match_table_Hsap,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Hsap"),set_colnames(match_table_Hbta,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Hbta"))
+match_table_species <- match_table_species[!is.na(match_table_species$PANTHER_ID),]
+match_table_species$orthogroup_ID <- as.character(match_table_species$orthogroup_ID)
+
+
+dup_list <- subset(match_table_species, orthogroup_ID %in% dup_ALL_orthogroup_PTHRfam$orthogroup_ID)%>%extract2("orthogroup_ID")%>%unique()
+
+# Find the most PTHR ID for dup 
+Themost_pickedPTHRID <- lapply(c(1:length(dup_list)), function(x){subset(match_table_species, match_table_species$orthogroup_ID %in% dup_list[x])%>%
+  extract2("PANTHER_ID")%>%
+  table()%>%
+  which.max()%>%
+  names()})%>%
+  set_names(dup_list)
+
+Themost_pickedPTHRID <- Themost_pickedPTHRID%>%
+  do.call("rbind",.)%>%
+  as.data.frame()%>%
+  mutate(orthogroup_ID = dup_list)%>%
+  set_colnames(c("PANTHER_ID","orthogroup_ID"))
+
+Themost_pickedPTHRID <- Themost_pickedPTHRID[c(2,1)]
+head(Themost_pickedPTHRID)
+```
+
+```{r}
+# Unique the duplicated OG
+ALL_orthogroup_PTHRfam <- subset(ALL_orthogroup_PTHRfam, orthogroup_ID %!in% unique(dup_ALL_orthogroup_PTHRfam$orthogroup_ID))
+ALL_orthogroup_PTHRfam <- ALL_orthogroup_PTHRfam%>%
+  rbind(Themost_pickedPTHRID)
+
+# The duplication should be all FALSE
+ALL_orthogroup_PTHRfam$orthogroup_ID%>%
+  duplicated()%>%
+  table()
+
+# No duplicated match
+```
+
+```{r}
+# The table of Orthogroups.GeneCount.tsv was collect from the salmonid synteny pipeline under the dirtory of Ortho_pipeline/OrthoFinder/Orthogroups.
+
+Orthogroups.GeneCount <- read_tsv("Orthogroups.GeneCount.tsv")%>%
+  as.data.frame()
+
+# the table looks like
+ # Orthogroup Bbub Chir Hbin Hbta Hsap Sscr Total
+ #  OG0000000   20   20   24   24   19   16   123
+ #  OG0000001   19   34   25   26    1    7   112
+ #  OG0000002   17   17   22   21   18   16   111
+ #  OG0000003   12   13   14   16   20    8    83
+ #  OG0000004   14   20   20   16    0    9    79
+ #  OG0000005   18   10   22   22    0    7    79
+
+# select collum for cafe
+cafe_input_data <- Orthogroups.GeneCount[,c("Orthogroup","Bbub","Chir","Hbin","Hbta","Hsap","Sscr")]
+colnames(cafe_input_data) %<>% gsub("Orthogroup","FAMILY",.)
+```
+
+```{r}
+cafe_input_data <- cafe_input_data%>%left_join(ALL_orthogroup_PTHRfam, by=c("FAMILY" = "orthogroup_ID"))%>%unique()
+
+# Number of not matching 
+cafe_input_data$PANTHER_ID%>%is.na()%>%table() 
+# FALSE  TRUE 
+# 16646  1777 
+
+# Number of families
+cafe_input_data$PANTHER_ID%>%unique()%>%length() 
+
+No_Hbta_Hsap <- cafe_input_data[cafe_input_data$PANTHER_ID%>%is.na(),]%>%
+  as.data.frame()
+
+# collect the orthogroup cannot match into gene families  
+((No_Hbta_Hsap[c("Hbta","Hsap")]%>%apply(.,1, sum))==0)%>%table
+# FALSE  TRUE 
+#  1460   317 
+No_Hbta_Hsap <- No_Hbta_Hsap[((No_Hbta_Hsap[c("Hbta","Hsap")]%>%apply(.,1, sum))==0),]
+
+(No_Hbta_Hsap[c("Bbub","Chir","Hbin","Hbta","Hsap","Sscr")]>0)%>%apply(.,2,sum)
+# Bbub Chir Hbin Hbta Hsap Sscr 
+#  154  138  124    0    0  156 
+```
+
+```{r}
+ALL_orthogroup_PTHRfam <- rbind(Hsap_orthogroup_PTHRfam,Hbta_orthogroup_PTHRfam)%>%
+  unique()
+
+ALL_orthogroup_PTHRfam%>%extract2("orthogroup_ID")%>%
+  unique()%>%length()
+```
+
+## Bbub
+
+```{r}
+blast_aa_Bbub <- read.table("blast_ID/blast_aa_Bbub.txt", header = F)%>%
+  set_colnames(c("query_id", "subject_id", "identity", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qcovs"))
+
+# total number of query 20255 out of 20364
+blast_aa_Bbub$query_id%>%
+  unique()%>%
+  length()
+blast_aa_Bbub$species <- blast_aa_Bbub$subject_id%>%gsub(".*_","",.)
+blast_aa_Bbub_selected <- subset(blast_aa_Bbub, species %in% c("BUBBU","HUMAN","BOVIN","CAPHI","BOSIN","BOBOX","PIG"))
+
+# Rank by the identity
+blast_aa_Bbub_selected <- blast_aa_Bbub_selected%>%
+  arrange(desc(identity))
+blast_aa_Bbub_selected <- data.table(blast_aa_Bbub_selected, key = "query_id")
+list_blast_aa_Bbub_selected <- blast_aa_Bbub_selected[, head(.SD, 1), by=query_id]
+
+list_blast_aa_Bbub_selected$identity%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Bbub_selected$evalue%>%
+  table()%>%
+  plot()
+
+ list_blast_aa_Bbub_selected$qcovs%>%
+  table()%>%
+  plot()
+```
+
+```{r}
+list_blast_aa_Bbub_selected <- list_blast_aa_Bbub_selected%>%
+ subset(qcovs >=70 )%>%
+  subset(evalue < 1.0e-5)
+```
+
+
+```{r}
+Bbub_UniProtKB <- list_blast_aa_Bbub_selected[,c(1,2)]%>%
+  set_colnames(c("Bbub_ID", "UniProtKB"))
+
+Bbub_UniProtKB$UniProtKB <- Bbub_UniProtKB$UniProtKB%>%
+  gsub("sp\\|","",.)%>%
+  gsub("\\|.*","",.)
+```
+
+```{r}
+orthogroup_Bbub <- read.table("orthogroup_Bbub.txt", header = F)
+orthogroup_Bbub <- orthogroup_Bbub$V1%>%
+  as.data.frame()%>%
+  set_colnames("orthogroup_seq")
+head(orthogroup_Bbub)
+```
+
+```{r}
+OG_rank <- orthogroup_Bbub$orthogroup_seq%>%grep("OG",.)
+
+ID_match <- lapply(c(1:length(OG_rank)), function(x){
+  if (x <= length(OG_rank)-1){
+    GAP <- (as.numeric(OG_rank[x+1]-OG_rank[x])-2)
+  }else{
+    GAP <- "-1"
+  }
+  if (GAP < 0){
+    OUTPUT <- "NULL"
+    OUTPUT
+  }else{
+    orthogroup_Bbub$orthogroup_seq[(c(as.numeric(OG_rank[x])+1)):((c(as.numeric(OG_rank[x])+1))+GAP)] 
+  }
+})%>%set_names(orthogroup_Bbub$orthogroup_seq[OG_rank])
+
+orthogroup_Bbub <- lapply(1:length(ID_match), FUN = function(x, object = ID_match){
+  object[[x]]%>%
+    as.data.frame()%>%
+    set_colnames("Bbub_ID")%>%
+    mutate(orthogroup_ID = rep(names(object[x]), length(object[[x]])))
+})%>%
+  do.call("rbind",.)
+
+orthogroup_Bbub <- subset(orthogroup_Bbub, Bbub_ID %!in% "NULL")
+orthogroup_Bbub$orthogroup_ID%>%unique()%>%length()
+```
+
+```{r}
+match_table_Bbub <- orthogroup_Bbub%>%
+  left_join(Bbub_UniProtKB, by = "Bbub_ID")
+match_table_Bbub$UniProtKB <- match_table_Bbub$UniProtKB%>%as.character()
+match_table_Bbub <- match_table_Bbub%>%
+  left_join(PTHR_UniProtKB)
+
+# For No_Hbta_Hsap only
+match_table_Bbub <- match_table_Bbub%>%subset(orthogroup_ID %in% No_Hbta_Hsap$FAMILY)
+orthogroup_PTHRfam <- match_table_Bbub[c("orthogroup_ID","PANTHER_ID")]%>%
+  unique()%>%
+  drop_na()
+
+orthogroup_PTHRfam$orthogroup_ID%>%length()
+Bbub_orthogroup_PTHRfam <- orthogroup_PTHRfam
+```
+
+## Chir
+
+```{r}
+blast_aa_Chir <- read.table("blast_ID/blast_aa_Chir.txt", header = F)%>%
+  set_colnames(c("query_id", "subject_id", "identity", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qcovs"))
+
+# total number of query
+blast_aa_Chir$query_id%>%
+  unique()%>%
+  length()
+
+blast_aa_Chir$species <- blast_aa_Chir$subject_id%>%gsub(".*_","",.)
+
+# Consider the most popular species, because  UniProtKB and panther data base more complete for those species
+blast_aa_Chir_selected <- subset(blast_aa_Chir, species %in% c("BUBBU","HUMAN","BOVIN","CAPHI","BOSIN","BOBOX","PIG"))
+
+# Rank by the identity
+blast_aa_Chir_selected <- blast_aa_Chir_selected%>%
+  arrange(desc(identity))
+blast_aa_Chir_selected <- data.table(blast_aa_Chir_selected, key = "query_id")
+list_blast_aa_Chir_selected <- blast_aa_Chir_selected[, head(.SD, 1), by=query_id]
+
+list_blast_aa_Chir_selected$identity%>%max() 
+list_blast_aa_Chir_selected$identity%>%min()
+
+list_blast_aa_Chir_selected$identity%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Chir_selected$evalue%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Chir_selected$evalue%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Chir_selected$qcovs%>%
+  table()%>%
+  plot()
+```
+
+```{r}
+list_blast_aa_Chir_selected <- list_blast_aa_Chir_selected%>%
+ subset(qcovs >=70 )%>%
+  subset(evalue < 1.0e-5)
+```
+
+```{r}
+Chir_UniProtKB <- list_blast_aa_Chir_selected[,c(1,2)]%>%
+  set_colnames(c("Chir_ID", "UniProtKB"))
+
+Chir_UniProtKB$UniProtKB <- Chir_UniProtKB$UniProtKB%>%
+   gsub("sp\\|","",.)%>%
+   gsub("\\|.*","",.)
+```
+
+```{r}
+orthogroup_Chir <- read.table("orthogroup_Chir.txt", header = F)
+orthogroup_Chir <- orthogroup_Chir$V1%>%
+  as.data.frame()%>%
+  set_colnames("orthogroup_seq")
+head(orthogroup_Chir)
+```
+
+```{r}
+OG_rank <- orthogroup_Chir$orthogroup_seq%>%grep("OG",.)
+
+ID_match <- lapply(c(1:length(OG_rank)), function(x){
+  if (x <= length(OG_rank)-1){
+    GAP <- (as.numeric(OG_rank[x+1]-OG_rank[x])-2)
+  }else{
+    GAP <- "-1"
+  }
+  if (GAP < 0){
+    OUTPUT <- "NULL"
+    OUTPUT
+  }else{
+    orthogroup_Chir$orthogroup_seq[(c(as.numeric(OG_rank[x])+1)):((c(as.numeric(OG_rank[x])+1))+GAP)] 
+  }
+})%>%set_names(orthogroup_Chir$orthogroup_seq[OG_rank])
+
+orthogroup_Chir <- lapply(1:length(ID_match), FUN = function(x, object = ID_match){
+  object[[x]]%>%
+    as.data.frame()%>%
+    set_colnames("Chir_ID")%>%
+    mutate(orthogroup_ID = rep(names(object[x]), length(object[[x]])))
+})%>%
+  do.call("rbind",.)
+
+orthogroup_Chir <- subset(orthogroup_Chir, Chir_ID %!in% "NULL")
+orthogroup_Chir$orthogroup_ID%>%unique()%>%length()
+```
+
+```{r}
+match_table_Chir <- orthogroup_Chir%>%
+  left_join(Chir_UniProtKB)
+match_table_Chir$UniProtKB <- match_table_Chir$UniProtKB%>%as.character()
+match_table_Chir <- match_table_Chir%>%
+  left_join(PTHR_UniProtKB)
+# For No_Hbta_Hsap only
+match_table_Chir <- match_table_Chir%>%subset(orthogroup_ID %in% No_Hbta_Hsap$FAMILY)
+orthogroup_PTHRfam <- match_table_Chir[c("orthogroup_ID","PANTHER_ID")]%>%
+  unique()%>%
+  drop_na()
+
+orthogroup_PTHRfam$orthogroup_ID%>%length()
+Chir_orthogroup_PTHRfam <- orthogroup_PTHRfam
+```
+
+## Sscr
+
+```{r}
+blast_aa_Sscr <- read.table("blast_ID/blast_aa_Sscr_v2.txt", header = F)%>%
+  set_colnames(c("query_id", "subject_id", "identity", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qcovs"))
+
+# total number of query
+blast_aa_Sscr$query_id%>%
+  unique()%>%
+  length()
+blast_aa_Sscr$species <- blast_aa_Sscr$subject_id%>%gsub(".*_","",.)
+blast_aa_Sscr_selected <- subset(blast_aa_Sscr, species %in% c("BUBBU","HUMAN","BOVIN","CAPHI","BOSIN","BOBOX","PIG"))
+
+# Rank by the identity
+blast_aa_Sscr_selected <- blast_aa_Sscr_selected%>%
+  arrange(desc(identity))
+blast_aa_Sscr_selected <- data.table(blast_aa_Sscr_selected, key = "query_id")
+list_blast_aa_Sscr_selected <- blast_aa_Sscr_selected[, head(.SD, 1), by=query_id]
+
+list_blast_aa_Sscr_selected$identity%>%max() 
+list_blast_aa_Sscr_selected$identity%>%min()
+
+list_blast_aa_Sscr_selected$identity%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Sscr_selected$evalue%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Sscr_selected$qcovs%>%
+  table()%>%
+  plot()
+```
+
+```{r}
+list_blast_aa_Sscr_selected <- list_blast_aa_Sscr_selected%>%
+ subset(qcovs >=70 )%>%
+ subset(evalue < 1.0e-5)
+```
+
+
+```{r}
+Sscr_UniProtKB <- list_blast_aa_Sscr_selected[,c(1,2)]%>%
+  set_colnames(c("Sscr_ID", "UniProtKB"))
+
+ Sscr_UniProtKB$UniProtKB <- Sscr_UniProtKB$UniProtKB%>%
+   gsub("sp\\|","",.)%>%
+   gsub("\\|.*","",.)
+```
+
+```{r}
+orthogroup_Sscr <- read.table("orthogroup_Sscr.txt", header = F)
+orthogroup_Sscr <- orthogroup_Sscr$V1%>%
+  as.data.frame()%>%
+  set_colnames("orthogroup_seq")
+head(orthogroup_Sscr)
+```
+
+```{r}
+OG_rank <- orthogroup_Sscr$orthogroup_seq%>%grep("OG",.)
+
+ID_match <- lapply(c(1:length(OG_rank)), function(x){
+  if (x <= length(OG_rank)-1){
+    GAP <- (as.numeric(OG_rank[x+1]-OG_rank[x])-2)
+  }else{
+    GAP <- "-1"
+  }
+  if (GAP < 0){
+    OUTPUT <- "NULL"
+    OUTPUT
+  }else{
+    orthogroup_Sscr$orthogroup_seq[(c(as.numeric(OG_rank[x])+1)):((c(as.numeric(OG_rank[x])+1))+GAP)] 
+  }
+})%>%set_names(orthogroup_Sscr$orthogroup_seq[OG_rank])
+
+orthogroup_Sscr <- lapply(1:length(ID_match), FUN = function(x, object = ID_match){
+  object[[x]]%>%
+    as.data.frame()%>%
+    set_colnames("Sscr_ID")%>%
+    mutate(orthogroup_ID = rep(names(object[x]), length(object[[x]])))
+})%>%
+  do.call("rbind",.)
+
+orthogroup_Sscr <- subset(orthogroup_Sscr, Sscr_ID %!in% "NULL")
+orthogroup_Sscr$orthogroup_ID%>%unique()%>%length()
+```
+
+```{r}
+match_table_Sscr <- orthogroup_Sscr%>%
+  left_join(Sscr_UniProtKB)
+match_table_Sscr$UniProtKB <- match_table_Sscr$UniProtKB%>%as.character()
+match_table_Sscr <- match_table_Sscr%>%
+  left_join(PTHR_UniProtKB)
+
+match_table_Sscr <- match_table_Sscr%>%subset(orthogroup_ID %in% No_Hbta_Hsap$FAMILY)
+orthogroup_PTHRfam <- match_table_Sscr[c("orthogroup_ID","PANTHER_ID")]%>%
+  unique()%>%
+  drop_na()
+
+orthogroup_PTHRfam$orthogroup_ID%>%length()
+Sscr_orthogroup_PTHRfam <- orthogroup_PTHRfam
+```
+
+## Hbin
+
+```{r}
+blast_aa_Hbin <- read.table("blast_ID/blast_aa_Hbin.txt", header = F)%>%
+  set_colnames(c("query_id", "subject_id", "identity", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qcovs"))
+
+# total number of query
+blast_aa_Hbin$query_id%>%
+  unique()%>%
+  length()
+blast_aa_Hbin$species <- blast_aa_Hbin$subject_id%>%gsub(".*_","",.)
+blast_aa_Hbin_selected <- subset(blast_aa_Hbin, species %in% c("BUBBU","HUMAN","BOVIN","CAPHI","BOSIN","BOBOX","PIG"))
+
+# Rank by the identity
+blast_aa_Hbin_selected <- blast_aa_Hbin_selected%>%
+  arrange(desc(identity))
+blast_aa_Hbin_selected <- data.table(blast_aa_Hbin_selected, key = "query_id")
+list_blast_aa_Hbin_selected <- blast_aa_Hbin_selected[, head(.SD, 1), by=query_id]
+
+list_blast_aa_Hbin_selected$identity%>%max() 
+list_blast_aa_Hbin_selected$identity%>%min()
+
+list_blast_aa_Hbin_selected$identity%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Hbin_selected$evalue%>%
+  table()%>%
+  plot()
+
+list_blast_aa_Hbin_selected$qcovs%>%
+  table()%>%
+  plot()
+```
+
+
+```{r}
+list_blast_aa_Hbin_selected <- list_blast_aa_Hbin_selected%>%
+ subset(qcovs >=70 )%>%
+  subset(evalue < 1.0e-5)
+```
+
+
+```{r}
+Hbin_UniProtKB <- list_blast_aa_Hbin_selected[,c(1,2)]%>%
+  set_colnames(c("Hbin_ID", "UniProtKB"))
+
+ Hbin_UniProtKB$UniProtKB <- Hbin_UniProtKB$UniProtKB%>%
+   gsub("sp\\|","",.)%>%
+   gsub("\\|.*","",.)
+```
+
+```{r}
+orthogroup_Hbin <- read.table("orthogroup_Hbin.txt", header = F)
+orthogroup_Hbin <- orthogroup_Hbin$V1%>%
+  as.data.frame()%>%
+  set_colnames("orthogroup_seq")
+head(orthogroup_Hbin)
+```
+
+```{r}
+OG_rank <- orthogroup_Hbin$orthogroup_seq%>%grep("OG",.)
+
+ID_match <- lapply(c(1:length(OG_rank)), function(x){
+  if (x <= length(OG_rank)-1){
+    GAP <- (as.numeric(OG_rank[x+1]-OG_rank[x])-2)
+  }else{
+    GAP <- "-1"
+  }
+  if (GAP < 0){
+    OUTPUT <- "NULL"
+    OUTPUT
+  }else{
+    orthogroup_Hbin$orthogroup_seq[(c(as.numeric(OG_rank[x])+1)):((c(as.numeric(OG_rank[x])+1))+GAP)] 
+  }
+})%>%set_names(orthogroup_Hbin$orthogroup_seq[OG_rank])
+
+orthogroup_Hbin <- lapply(1:length(ID_match), FUN = function(x, object = ID_match){
+  object[[x]]%>%
+    as.data.frame()%>%
+    set_colnames("Hbin_ID")%>%
+    mutate(orthogroup_ID = rep(names(object[x]), length(object[[x]])))
+})%>%
+  do.call("rbind",.)
+
+orthogroup_Hbin <- subset(orthogroup_Hbin, Hbin_ID %!in% "NULL")
+orthogroup_Hbin$orthogroup_ID%>%unique()%>%length()
+```
+
+```{r}
+match_table_Hbin <- orthogroup_Hbin%>%
+  left_join(Hbin_UniProtKB)
+match_table_Hbin$UniProtKB <- match_table_Hbin$UniProtKB%>%as.character()
+match_table_Hbin <- match_table_Hbin%>%
+  left_join(PTHR_UniProtKB)
+
+match_table_Hbin <- match_table_Hbin%>%subset(orthogroup_ID %in% No_Hbta_Hsap$FAMILY)
+
+orthogroup_PTHRfam <- match_table_Hbin[c("orthogroup_ID","PANTHER_ID")]%>%
+  unique()%>%
+  drop_na()
+
+orthogroup_PTHRfam$orthogroup_ID%>%length()
+Hbin_orthogroup_PTHRfam <- orthogroup_PTHRfam
+```
+
+# ALL orthogroup PTHR match
+
+```{r}
+ALL_orthogroup_PTHRfam <- rbind(Hsap_orthogroup_PTHRfam,Hbta_orthogroup_PTHRfam)%>%
+  rbind(Bbub_orthogroup_PTHRfam)%>%
+  rbind(Hbin_orthogroup_PTHRfam)%>%
+  rbind(Sscr_orthogroup_PTHRfam)%>%
+  rbind(Chir_orthogroup_PTHRfam)
+
+ALL_orthogroup_PTHRfam%>%
+  extract2("orthogroup_ID")%>%
+  unique()%>%
+  length()
+```
+
+## fix duplicated PTHRfam for the same orthogroup
+```{r}
+ALL_orthogroup_PTHRfam[ALL_orthogroup_PTHRfam$orthogroup_ID%>%duplicated(),]%>%extract2("orthogroup_ID")%>%unique()%>%length()
+ 
+# Duplicate mapping exist, due to bad alignment (3830)
+
+dup_ALL_orthogroup_PTHRfam <- ALL_orthogroup_PTHRfam[ALL_orthogroup_PTHRfam$orthogroup_ID%>%duplicated(),]
+
+match_table_species <- rbind(set_colnames(match_table_Hsap,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Hsap"),set_colnames(match_table_Hbta,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Hbta"))%>%
+  rbind(set_colnames(match_table_Bbub,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Bbub"))%>%
+  rbind(set_colnames(match_table_Chir,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Chir"))%>%
+  rbind(set_colnames(match_table_Sscr,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Sscr"))%>%
+  rbind(set_colnames(match_table_Hbin,c("species_ID","orthogroup_ID","UniProtKB", "PANTHER_ID"))%>%mutate(species = "Hbin"))
+
+  
+match_table_species$orthogroup_ID <- as.character(match_table_species$orthogroup_ID)
+dup_list <- subset(match_table_species, orthogroup_ID %in% dup_ALL_orthogroup_PTHRfam$orthogroup_ID)%>%extract2("orthogroup_ID")%>%unique()
+
+# Find the most PTHR ID for dup 
+Themost_pickedPTHRID <- lapply(c(1:length(dup_list)), function(x){subset(match_table_species, orthogroup_ID %in% dup_list[x])%>%
+  extract2("PANTHER_ID")%>%
+  table()%>%
+  which.max()%>%
+  names()})%>%
+  set_names(dup_list)
+
+Themost_pickedPTHRID <- Themost_pickedPTHRID%>%
+  do.call("rbind",.)%>%
+  as.data.frame()%>%
+  mutate(orthogroup_ID = dup_list)%>%
+  set_colnames(c("PANTHER_ID","orthogroup_ID"))
+
+Themost_pickedPTHRID <- Themost_pickedPTHRID[c(2,1)]
+head(Themost_pickedPTHRID)
+```
+
+```{r}
+# Unique the duplicated OG
+ALL_orthogroup_PTHRfam <- subset(ALL_orthogroup_PTHRfam, orthogroup_ID %!in% unique(dup_ALL_orthogroup_PTHRfam$orthogroup_ID))
+ALL_orthogroup_PTHRfam <- ALL_orthogroup_PTHRfam%>%
+  rbind(Themost_pickedPTHRID)
+
+ALL_orthogroup_PTHRfam$orthogroup_ID%>%
+  duplicated()%>%
+  table()
+
+# No duplicated match
+```
+
+
+```{r}
+cafe_input_data <- read.table("cafe-input.data", header = T)
+cafe_input_data <- cafe_input_data%>%left_join(ALL_orthogroup_PTHRfam, by=c("FAMILY" = "orthogroup_ID"))%>%unique()
+
+cafe_input_data$PANTHER_ID%>%is.na()%>%table() # 479 OG no match
+cafe_input_data$PANTHER_ID%>%unique()%>%length() #into 7485 gene family, and NA 
+
+cafe_input_data <- cafe_input_data[!cafe_input_data$PANTHER_ID%>%is.na(),]
+
+cafe_input_data <- cafe_input_data[,c(1,9,3,4,5,6,7,8)]%>%
+  set_colnames(c("Desc","FAMILY", "Bbub", "Chir", "Hbin", "Hbta", "Hsap", "Sscr"))
+```
+# Check the matching
+```{r}
+saveRDS(ALL_orthogroup_PTHRfam, "ALL_orthogroup_PTHRfam.rds")
+write_csv(match_table_species,"match_table_species.csv")
+```
+
+```{r}
+match_table_species <- read_csv("match_table_species.csv")
+ALL_UniProtKB_ToEntrez <- read_delim("ALL_UniProtKB_ToEntrez.txt",delim = "\t")%>%
+  set_colnames(c("UniProtKB","Entrez_ID"))
+ALL_UniProtKB_ToEntrez$Entrez_ID <- as.character(ALL_UniProtKB_ToEntrez$Entrez_ID)
+
+match_table_species <- left_join(match_table_species,ALL_UniProtKB_ToEntrez, by = "UniProtKB")%>%
+  as.data.frame()%>%
+  mutate(Othrofinder_ID=species_ID%>%
+           gsub("_.*","",.))
+
+check_Entrez_ID <- data.frame(match_table_species$Entrez_ID,match_table_species$Othrofinder_ID, stringsAsFactors=F)%>%
+  set_colnames(c("Entrez_ID", "Othrofinder_ID"))
+
+match_table_species_forcheck <- match_table_species[check_Entrez_ID$Entrez_ID == check_Entrez_ID$Othrofinder_ID,]%>%
+  drop_na()
+
+match_table_species_forcheck$PANTHER_ID%>%unique()%>%length()
+match_table_species_forcheck$orthogroup_ID%>%unique()%>%length()
+match_table_species_forcheck$species%>%table()
+
+# Collect the Entrez ID from the Othrofinder and match the Entrez ID to UniProtKB ID
+# check not match IDs
+ALL_Entrez_ToUniProtKB <- read_delim("ALL_Entrez_ToUniProtKB.txt", delim="\t")%>%
+  set_colnames(c("Entrez_ID","UniProtKB"))
+ALL_Entrez_ToUniProtKB$Entrez_ID <- as.character(ALL_Entrez_ToUniProtKB$Entrez_ID)
+ALL_Entrez_ToUniProtKB$UniProtKB <- as.character(ALL_Entrez_ToUniProtKB$UniProtKB)
+
+match_table_species_forcheck <- subset(match_table_species, orthogroup_ID %!in% match_table_species_forcheck$orthogroup_ID)%>%left_join(ALL_Entrez_ToUniProtKB, by = c("Othrofinder_ID" = "Entrez_ID"))
+
+left_join(match_table_species_forcheck,PTHR_UniProtKB, by = c("UniProtKB.y" = "UniProtKB"))%>%write_csv("match_table_species_forcheck.csv") ## manul check
+
+match_table_species_forcheck <- read.csv("match_table_species_forcheck.csv")
+
+check_PANTHER_ID <- data.frame(match_table_species_forcheck$PANTHER_ID.x,match_table_species_forcheck$PANTHER_ID.y, stringsAsFactors=F)%>%
+  set_colnames(c("PANTHER_ID.blast", "PANTHER_ID.OF"))
+
+
+(check_PANTHER_ID$PANTHER_ID.blast == check_PANTHER_ID$PANTHER_ID.OF)%>%table()
+
+## the orthogroup that defined in our and Othrofinder in different ways
+orthogroup_toexclude <- match_table_species_forcheck[!(check_PANTHER_ID$PANTHER_ID.blast == check_PANTHER_ID$PANTHER_ID.OF),]%>%drop_na()
+```
+
+```{r}
+# remove uncertain orthogroup that defined in our and Othrofinder in different ways
+ALL_orthogroup_PTHRfam <- ALL_orthogroup_PTHRfam%>%subset(orthogroup_ID %!in% orthogroup_toexclude$orthogroup_ID)
+```
+
+### Combine for cafe
+
+```{r}
+# The table of Orthogroups.GeneCount.tsv was collect from the salmonid synteny pipeline under the dirtory of Ortho_pipeline/OrthoFinder/Orthogroups.
+
+Orthogroups.GeneCount <- read_tsv("Orthogroups.GeneCount.tsv")%>%
+  as.data.frame()
+
+# the table looks like
+ # Orthogroup Bbub Chir Hbin Hbta Hsap Sscr Total
+ #  OG0000000   20   20   24   24   19   16   123
+ #  OG0000001   19   34   25   26    1    7   112
+ #  OG0000002   17   17   22   21   18   16   111
+ #  OG0000003   12   13   14   16   20    8    83
+ #  OG0000004   14   20   20   16    0    9    79
+ #  OG0000005   18   10   22   22    0    7    79
+
+# select collum for cafe
+cafe_input_data <- Orthogroups.GeneCount[,c("Orthogroup","Bbub","Chir","Hbin","Hbta","Hsap","Sscr")]
+colnames(cafe_input_data) %<>% gsub("Orthogroup","FAMILY",.)
+```
+
+
+```{r}
+cafe_input_data <- cafe_input_data%>%left_join(ALL_orthogroup_PTHRfam, by=c("FAMILY" = "orthogroup_ID"))%>%unique()
+
+cafe_input_data$PANTHER_ID%>%is.na()%>%table()
+cafe_input_data$PANTHER_ID%>%unique()%>%length()
+
+cafe_input_data <- cafe_input_data[!cafe_input_data$PANTHER_ID%>%is.na(),]
+
+cafe_input_data$Desc <- "null"
+
+cafe_input_data <- cafe_input_data[,c(9,8,2,3,4,5,6,7)]%>%
+  set_colnames(c("Desc","FAMILY", "Bbub", "Chir", "Hbin", "Hbta", "Hsap", "Sscr"))
+```
+
+```{r}
+com_cafe_input_data <- cafe_input_data%>%
+  split(., f = as.factor(cafe_input_data$FAMILY))
+
+com_cafe_input_data <- lapply(c(1:length(com_cafe_input_data)), function(x){
+  com_cafe_input_data[[x]][,c(1:2)][1,]%>%cbind(com_cafe_input_data[[x]][,c(3:8)]%>%
+  colSums()%>%
+  as.data.frame()%>%
+  set_rownames(names(colSums(com_cafe_input_data[[x]][,c(3:8)])))%>%t())})%>%
+  do.call("rbind",.)
+
+com_cafe_input_data$FAMILY%>%is.na()%>%table()
+com_cafe_input_data$FAMILY%>%unique()%>%length()
+write_csv(com_cafe_input_data, "com_cafe_input_data.csv")
+```
+
+```{r}
+# Check the MHC families
+subset(com_cafe_input_data, FAMILY %in% "PTHR16675")
+subset(com_cafe_input_data, FAMILY %in% "PTHR19944")
+```
+
+
+```{r}
+# The combined and filtered CAFE inputs
+ALL_orthogroup_PTHRfam_immune <- readRDS("ALL_orthogroup_PTHRfam_immune.rds")
+
+filtered_cafe_input_all <- read.table("filtered_cafe_input_all.txt", header = T)%>%
+  left_join(PTHR_UniProtKB, by= c("FAMILY" = "PANTHER_ID"))%>%
+  left_join(match_table_species, by = "UniProtKB")%>%
+  left_join(as.data.frame(mcols(ALL_orthogroup_PTHRfam_immune)), by = c("Entrez_ID" ="entrezid"))
+
+check <- filtered_cafe_input_all[,c("FAMILY","Entrez_ID","gene_biotype")]%>%
+  drop_na()%>%
+  subset(gene_biotype %in% "protein_coding")
+
+# How many families are immune related 
+check$FAMILY%>%
+  unique()%>%
+  length()
+```
+
