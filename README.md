@@ -29,7 +29,7 @@ The cds sequences of single-copy othrogroups were collected from OrthoFinder to 
 2. Searching the immune-related genes in those positive-selected sites with the human database as the reference (PAML_Find_immune_Gene.Rmd).
 3. Importing PAML results to perform GO, KEGG and Reactome enrichment analysis base on human and cattle annotation as the reference (PAML_GO_KEGG_Reactome_pathway.Rmd).
 
-## MHC coordinates analysis
+## Babesia and MHC coordinates blast analysis
 This script imported the blast results of Babesia ovata (GBE63528.1) against the six species genomes.
 Calculate and visualize the blast hits for each species.
 Additionally, the results of MHC were comapred to that obtained from manual curation (Babesia_orf2_tblastn.Rmd). 
