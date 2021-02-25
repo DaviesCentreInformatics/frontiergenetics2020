@@ -1,12 +1,5 @@
 # Analysis of river buffalo gene gains/losses and positive selection
-The upstream synteny pipeline <https://gitlab.com/sandve-lab/salmonid_synteny> that includes OrthoFinder was run for six species: 
-
-river buffalo <https://www.ncbi.nlm.nih.gov/assembly/GCF_003121395.1/> (Low et al., 2019), 
-goat <https://www.ncbi.nlm.nih.gov/assembly/GCF_001704415.1/> (Bickhart et al., 2017), 
-pig <https://www.ncbi.nlm.nih.gov/assembly/GCF_000003025.6/> (Warr et al., 2019), 
-indicine cattle <https://www.ncbi.nlm.nih.gov/assembly/GCA_003369695.1> (Low et al., 2020), 
-taurine cattle <https://www.ncbi.nlm.nih.gov/assembly/GCA_002263795.1/> (Rosen et al., 2020) 
-and human <https://www.ncbi.nlm.nih.gov/assembly/GCF_000001405.39> (Schneider et al., 2017). 
+The upstream synteny pipeline <https://gitlab.com/sandve-lab/salmonid_synteny> that includes OrthoFinder was run for six species.
 
 The repository contains custom scripts used to prepare the CAFE and PAML analysis materials and analyse their outputs following the synteny pipeline.
 A script checking the MHC gene coordinates and Babesia blast hits also included in the repository.
