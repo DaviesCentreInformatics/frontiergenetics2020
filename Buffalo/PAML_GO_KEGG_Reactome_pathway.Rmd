@@ -26,7 +26,8 @@ library(ReactomePA)
 library(clusterProfiler)
 ```
 
-## human database
+# Analysis
+## ref human database
 ```{r}
 #ah <- AnnotationHub()
 #saveRDS(ah,"All_annotation.rds")
@@ -61,24 +62,18 @@ human_ALL_entrezID <- genesGR %>%
 ```
 
 # results positive select
-## human
+## ref human database
 
 ```{r}
-results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
-  as.data.frame()%>%
-  subset(species %in% "Hsap")
-```
+humanref_results_Positive_select <- read_csv("Output/PAML/humanref_results_Positive_select.csv")%>%
+  as.data.frame()
 
-```{r}
-results_Positive_select$entrezgene_id <- results_Positive_select$entrezgene_id%>%as.character()
-results_Positive_select <- results_Positive_select%>%
-  left_join(Genes, by = c("entrezgene_id" = "entrezid"))%>%
-  subset(gene_biotype %in% "protein_coding")
+head(humanref_results_Positive_select)
 ```
 
 #### GO
 ```{r GO pathway}
-goRes <- goana(results_Positive_select$entrezgene_id, human_ALL_entrezID, species = "Hs")
+goRes <- goana(humanref_results_Positive_select$entrezgene_id, human_ALL_entrezID, species = "Hs")
 
 human_goRes <- goRes%>%
   rownames_to_column("GO_ID")%>%
@@ -95,7 +90,7 @@ human_goRes%>%
 
 #### KEGG
 ```{r  KEGG pathway}
-keggRes <- kegga(results_Positive_select$entrezgene_id, human_ALL_entrezID, species = "Hs") # for KEGG pathway
+keggRes <- kegga(humanref_results_Positive_select$entrezgene_id, human_ALL_entrezID, species = "Hs") 
 
 human_keggRes <- keggRes%>% 
   rownames_to_column("KEGG_ID")%>%
@@ -109,20 +104,78 @@ human_keggRes
 ### Reactome
 
 ```{r}
-sigSite_enrichPath <- enrichPathway(gene=results_Positive_select$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
+sigSite_enrichPath <- enrichPathway(gene=humanref_results_Positive_select$entrezgene_id, pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
 
-# NULL sig term
-cnetplot(sigSite_enrichPath, node_label = 'none')
+summary(sigSite_enrichPath)
+# No term found
+#cnetplot(sigSite_enrichPath)
+```
+## immune genes in results positive selection results
+
+```{r}
+results_Positive_select_immune <- read_csv("Output/PAML/humanref_results_Positive_select_immune.csv")%>%
+  as.data.frame()
+
+results_Positive_select_immune$entrez%>%
+  unique()%>%
+  length() #205 immune genes
+
+results_Positive_select_immune$entrez%>%
+  unique()
+```
+
+#### GO
+```{r}
+goRes <- goana(results_Positive_select_immune$entrez, humanref_results_Positive_select$entrezgene_id, species = "Hs")
+
+human_immune_goRes <- goRes%>%
+  rownames_to_column("GO_ID")%>%
+  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+human_immune_goRes%>%
+  dim()
+```
+
+#### KEGG
+```{r  KEGG pathway}
+keggRes <- kegga(results_Positive_select_immune$entrez, humanref_results_Positive_select$entrezgene_id, species = "Hs") 
+
+human_immune_keggRes <- keggRes%>% 
+  rownames_to_column("KEGG_ID")%>%
+  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+human_immune_keggRes
+human_immune_keggRes$KEGG_ID%>%
+  gsub("path:hsa","hsa:",.)%>%
+  as.data.frame()
+```
+
+
+#### Reactome
+
+```{r}
+results_Positive_select_immune_enrichPath <- enrichPathway(gene=results_Positive_select_immune$entrez, pAdjustMethod="fdr", qvalueCutoff=0.5, readable=T, minGSSize = 3, maxGSSize = 300)
+
+cnetplot(results_Positive_select_immune_enrichPath)
+summary(results_Positive_select_immune_enrichPath)
+```
+
+```{r}
+# Another way to do GO enrichment but older database
+results_Positive_select_immune_enrichGO <- enrichGO(gene=results_Positive_select_immune$entrez, pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300,OrgDb='org.Hs.eg.db')
+
+cnetplot(results_Positive_select_immune_enrichGO)
+summary(results_Positive_select_immune_enrichGO)
 ```
 
 ## cattle database (No Reactome term)
 
 ```{r}
-results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
-  as.data.frame()%>%
-  subset(species %in% "Hbta")
-
-results_Positive_select$ToEntrez <- results_Positive_select$species_ID%>%gsub("_.*","",.)
+Hbtaref_results_Positive_select <- read_csv("Output/PAML/Hbtaref_results_Positive_select.csv")%>%
+  as.data.frame()
 ```
 
 
@@ -148,15 +201,6 @@ Genes$entrezid <- Genes$entrezid%>%as.character()
 
 
 ```{r}
-results_Positive_select$ToEntrez <- results_Positive_select$ToEntrez%>%as.character()
-results_Positive_select <- results_Positive_select%>%
-  left_join(Genes, by = c("ToEntrez" = "entrezid"))%>%
-  subset(gene_biotype %in% "protein_coding")
-colnames(results_Positive_select) <- colnames(results_Positive_select)%>%gsub("ToEntrez","entrez",.)
-```
-
-
-```{r}
 cattle_ALL_entrezID <- genesGR %>% 
   subset(!is.na(entrezid)) %>%
   mcols() %>%
@@ -165,13 +209,10 @@ cattle_ALL_entrezID <- genesGR %>%
   unique() 
 ```
 
-```{r GO pathway}
-cattle_entrezID <- cattle_ALL_entrezID[cattle_ALL_entrezID %in% results_Positive_select$entrez]
-```
-
 #### GO
 ```{r}
-goRes <- goana(cattle_entrezID, cattle_ALL_entrezID, species = "Bt")
+goRes <- goana(Hbtaref_results_Positive_select$geneID, cattle_ALL_entrezID, species = "Bt")
+
 cattle_goRes <- goRes%>%
   rownames_to_column("GO_ID")%>%
   mutate(fdr = p.adjust(P.DE, "fdr"))%>%
@@ -186,7 +227,7 @@ cattle_goRes$GO_ID%>%
 
 #### KEGG
 ```{r  KEGG pathway}
-keggRes <- kegga(cattle_entrezID, cattle_ALL_entrezID, species = "Bt")
+keggRes <- kegga(Hbtaref_results_Positive_select$geneID, cattle_ALL_entrezID, species = "Bt")
 
 cattle_keggRes <- keggRes%>% 
   rownames_to_column("KEGG_ID")%>%
@@ -198,66 +239,6 @@ cattle_keggRes$GO_ID%>%
   as.data.frame()
 ```
 
-# immune genes in results positive selection results
-
-### all immune genes
-
-```{r}
-results_Positive_select_immune <- read_csv("branch_results_Positive_select_immune.csv")%>%
-  as.data.frame()
-
-results_Positive_select_immune$gene_name%>%
-  unique()%>%
-  length() #206 immune genes
-
-results_Positive_select_immune$ToEntrez%>%
-  unique()
-```
-
-#### GO
-```{r}
-goRes <- goana(results_Positive_select_immune$ToEntrez, results_Positive_select$ToEntrez, species = "Hs")
-
-human_immune_goRes <- goRes%>%
-  rownames_to_column("GO_ID")%>%
-  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
-  subset(fdr < 0.05)%>%
-  arrange(fdr)
-
-human_immune_goRes%>%
-  dim()
-
-subset(human_immune_goRes, Ont %in% "BP")$GO_ID%>%
-  as.data.frame()
-```
-
-#### KEGG
-```{r  KEGG pathway}
-keggRes <- kegga(results_Positive_select_immune$ToEntrez, results_Positive_select$ToEntrez, species = "Hs") # for KEGG pathway
-
-human_immune_keggRes <- keggRes%>% 
-  rownames_to_column("KEGG_ID")%>%
-  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
-  subset(fdr < 0.05)%>%
-  arrange(fdr)
-human_immune_keggRes
-human_immune_keggRes$KEGG_ID%>%
-  gsub("path:hsa","hsa:",.)%>%
-  as.data.frame()
-```
-
-
-#### Reactome
-
-```{r}
-sigSite_enrichPath <- enrichPathway(gene=results_Positive_select_immune$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.5, readable=T, minGSSize = 3, maxGSSize = 300)
-cnetplot(sigSite_enrichPath)
-```
-```{r}
-sigSite_enrichGO <- enrichGO(gene=results_Positive_select_immune$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300,OrgDb='org.Hs.eg.db')
-
-cnetplot(sigSite_enrichGO)
-```
 
 # Appendix
 
