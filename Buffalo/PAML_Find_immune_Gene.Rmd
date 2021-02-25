@@ -1,0 +1,600 @@
+---
+title: "PAML_Find_immune_Gene"
+author: "Kelly Ren"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2: default
+bibliography: FinalthesisRef.bib
+link-citations: yes
+fig_caption: yes
+toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Packages
+
+```{r}
+library(magrittr)
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyverse)
+library(readxl)
+library(gtools)
+library(tibble)
+library(AnnotationHub)
+library(biomaRt)
+```
+
+# Analysis
+
+```{r}
+genes_in_orthogroup_all_species <- read_csv("Output/CAFE/genes_in_orthogroup_all_species.csv")
+```
+
+## Positive select results
+### Human
+
+```{r}
+human_results_Positive_select <- read_csv("Output/PAML/branch_results_Positive_select.csv")%>%
+  as.data.frame()
+
+# human only
+human_results_Positive_select$species%>%table()
+```
+
+
+```{r}
+#ah <- AnnotationHub()
+#saveRDS(ah,"All_annotation.rds")
+ah <- read_rds("/Users/kellydren/Documents/Kelly_annotation/All_annotation.rds") 
+#subset(ah, rdataclass == "EnsDb" & species == "Homo sapiens")
+ensDb <- ah[["AH83216"]]
+ensDb
+```
+
+```{r}
+genesGR <- genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+
+```{r}
+human_results_Positive_select$entrezgene_id <- human_results_Positive_select$entrezgene_id%>%as.character()
+human_results_Positive_select <- human_results_Positive_select%>%
+  left_join(Genes, by = c("entrezgene_id" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+colnames(human_results_Positive_select) <- colnames(human_results_Positive_select)%>%gsub("entrezgene_id","entrez",.)
+```
+
+#### Search immune genes for Human in immune database
+
+```{r}
+# This table downloaded from InnateDB immune database for human, mouse only
+InnateDB_immune <- read_csv("Input/Immune_gene_ref/InnateDB_genes_all.csv")%>%
+  as.data.frame()
+InnateDB_immune$entrez <- as.character(InnateDB_immune$entrez)
+
+InnateDB_immune$species%>%
+  table() #species Homo sapiens and mouse
+
+# selected for human only
+InnateDB_immune_human <- subset(InnateDB_immune,species %in% "Homo sapiens")
+selected_InnateDB_immune_human <- InnateDB_immune_human[,c("id","species","taxonId","ensembl","entrez","name","fullname","synonym","signature","chromStart", "chromEnd", "chromStrand", "chromName", "goTerms","function","humanOrthologs","mouseOrthologs","bovineOrthologs")]
+
+selected_InnateDB_immune_human_MHCGRanges <- selected_InnateDB_immune_human%>%set_colnames(c("id","species","taxonId","ensembl","entrez","name","fullname","synonym","signature","start", "end", "strand", "chr", "goTerms","function","humanOrthologs","mouseOrthologs","bovineOrthologs"))%>%
+  makeGRangesFromDataFrame()
+
+mcols(selected_InnateDB_immune_human_MHCGRanges) <- selected_InnateDB_immune_human
+
+human_results_Positive_select_GRanges <- makeGRangesFromDataFrame(human_results_Positive_select)
+mcols(human_results_Positive_select_GRanges) <- human_results_Positive_select
+
+# Overlaps to find the immune genes
+human_results_Positive_select_immune <- human_results_Positive_select_GRanges[queryHits(findOverlaps(human_results_Positive_select_GRanges,selected_InnateDB_immune_human_MHCGRanges)),]
+
+human_results_Positive_select_immune$ID%>%unique()%>%length()
+
+# output the Positive_select results for immune gene only
+write_csv(as.data.frame(mcols(human_results_Positive_select_immune)),"Output/PAML/humanref_results_Positive_select_immune.csv")
+```
+
+
+```{r}
+# Check if result contain MHC I or II
+human_results_Positive_select_immune[mcols(human_results_Positive_select_immune)$description%>%grep("histocompatibility",.),]
+
+human_results_Positive_select_immune[mcols(human_results_Positive_select_immune)$description%>%grep("histocompatibility",.),]%>%mcols()%>%
+  extract2("ID")%>%
+  unique() 
+
+human_results_Positive_select_immune[mcols(human_results_Positive_select_immune)$description%>%grep("histocompatibility",.),]%>%mcols()%>%
+  extract2("ID")%>%
+  unique() 
+```
+
+#### Search through our manully identified MHC immune genes
+
+```{r}
+MHC_species_gene_coordinate <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+  as.data.frame()
+
+MHC_species_gene_coordinate_MHCGRanges <- makeGRangesFromDataFrame(MHC_species_gene_coordinate)
+mcols(MHC_species_gene_coordinate_MHCGRanges) <- MHC_species_gene_coordinate
+
+# Search for human only
+mcols(human_results_Positive_select_GRanges)[queryHits(findOverlaps(human_results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "human",])),]
+
+mcols(MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "human",])[subjectHits(findOverlaps(human_results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "human",])),]
+```
+
+### Bbub
+```{r}
+Bbub_results_Positive_select <- read_csv("Output/PAML/branch_results_Positive_select.csv")%>%
+  as.data.frame()
+
+Bbub_results_Positive_select <- genes_in_orthogroup_all_species%>%
+  subset(spc %in% "Bbub")%>%
+  subset(orthogroup_ID %in% Bbub_results_Positive_select$orthogroup_ID)
+```
+
+```{r}
+# The gff file of water buffalo can be download from 
+water_buffalogff <- read_rds("water_buffalogff.rds")
+water_buffalogff <- subset(water_buffalogff, type %in% "gene")
+water_buffalogff$entrezID <- water_buffalogff$attributes%>%gsub("^.*GeneID:","",.)%>%gsub(";Name=.*","",.)
+
+water_buffaloGRanges <- makeGRangesFromDataFrame(water_buffalogff)
+water_buffalogff$seqid <- water_buffalogff$seqid%>%
+  gsub(" X", "X",.)
+
+water_buffaloGRanges <- water_buffalogff[grep("protein_coding", water_buffalogff[,9]),]%>%
+  unique()%>%
+  makeGRangesFromDataFrame()
+
+water_buffalo_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, species %in% "water buffalo")),drop.levels(water_buffaloGRanges))
+
+water_buffalo_Geneoverlap%>%
+  length()
+```
+
+### Hbta
+
+```{r}
+Hbta_results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
+  as.data.frame()
+
+Hbta_results_Positive_select <- genes_in_orthogroup_all_species%>%
+  subset(spc %in% "Hbta")%>%
+  subset(orthogroup_ID %in% Hbta_results_Positive_select$orthogroup_ID)
+  
+```
+
+```{r}
+#ah <- AnnotationHub()
+#saveRDS(ah,"All_annotation.rds")
+ah <- read_rds("/Users/kellydren/Documents/Kelly_annotation/All_annotation.rds") 
+#subset(ah, rdataclass == "EnsDb" & species == "Bos taurus")
+ensDb <- ah[["AH83145"]]
+ensDb
+```
+
+```{r}
+genesGR <- genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+
+```{r}
+Hbta_results_Positive_select$geneID <- Hbta_results_Positive_select$geneID%>%as.character()
+Hbta_results_Positive_select <- Hbta_results_Positive_select%>%
+  left_join(Genes, by = c("geneID" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+head(Hbta_results_Positive_select)
+```
+
+```{r}
+Hbta_results_Positive_select_GRanges <- makeGRangesFromDataFrame(Hbta_results_Positive_select)
+mcols(Hbta_results_Positive_select_GRanges) <- Hbta_results_Positive_select
+head(Hbta_results_Positive_select_GRanges)
+```
+
+#### Search through our manully identified MHC immune genes
+
+```{r}
+MHC_species_gene_coordinate <- read_csv("Manul_MHC_species_gene_coordinate_table.csv")%>%
+  as.data.frame()
+
+MHC_species_gene_coordinate_MHCGRanges <- makeGRangesFromDataFrame(MHC_species_gene_coordinate)
+mcols(MHC_species_gene_coordinate_MHCGRanges) <- MHC_species_gene_coordinate
+
+
+MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "cattle",]
+
+# Search for cattle only
+mcols(Hbta_results_Positive_select_GRanges)[queryHits(findOverlaps(Hbta_results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "cattle",])),]
+
+mcols(MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "cattle",])[subjectHits(findOverlaps(Hbta_results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "cattle",])),]
+```
+
+### Hbin
+
+```{r}
+Hbin_results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
+  as.data.frame()
+
+Hbin_results_Positive_select <- genes_in_orthogroup_all_species%>%
+  subset(spc %in% "Hbin")%>%
+  subset(orthogroup_ID %in% Hbin_results_Positive_select$orthogroup_ID)
+```
+
+```{r}
+#mart = useMart(biomart="ensembl")
+#listDatasets(mart)[listDatasets(mart)$description%>%grep("UOA",.),]
+
+Bos_taurus = useMart(biomart="ensembl", dataset="bihybrid_gene_ensembl")
+
+Genes <- getBM(attributes= c("chromosome_name","start_position","end_position","strand","ensembl_gene_id","external_gene_name","gene_biotype", "description","entrezgene_id"),mart= Bos_taurus)%>%
+  subset(gene_biotype %in% "protein_coding")
+Genes$strand <- Genes$strand%>%
+  gsub("-1", "-",.)
+Genes$strand <- Genes$strand%>%
+  gsub("1", "+",.)
+
+Genes <- Genes%>%
+  set_colnames(c(c("chr","start","end","strand","ensembl_gene_id","external_gene_name","gene_biotype", "description","entrezid")))%>%
+  as.data.frame()
+```
+
+```{r}
+Hbin_results_Positive_select$geneID <- Hbin_results_Positive_select$geneID%>%as.character()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+Hbin_results_Positive_select <- Hbin_results_Positive_select%>%
+  left_join(Genes, by = c("geneID" = "entrezid"))
+
+# remove now matching gene ID
+Hbin_results_Positive_select <- drop_na(Hbin_results_Positive_select)
+
+head(Hbin_results_Positive_select)
+```
+
+```{r}
+Hbin_results_Positive_select_GRanges <- makeGRangesFromDataFrame(drop_na(Hbin_results_Positive_select))
+mcols(Hbin_results_Positive_select_GRanges) <- Hbin_results_Positive_select
+head(Hbin_results_Positive_select_GRanges)
+```
+#### Search through our manully identified MHC immune genes
+
+```{r}
+MHC_species_gene_coordinate <- read_csv("Manul_MHC_species_gene_coordinate_table.csv")%>%
+  as.data.frame()
+
+MHC_species_gene_coordinate_MHCGRanges <- makeGRangesFromDataFrame(MHC_species_gene_coordinate)
+mcols(MHC_species_gene_coordinate_MHCGRanges) <- MHC_species_gene_coordinate
+
+
+MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "brahman",]
+
+# Search for cattle only
+mcols(Hbin_results_Positive_select_GRanges)[queryHits(findOverlaps(Hbin_results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "cattle",])),]
+
+mcols(MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "cattle",])[subjectHits(findOverlaps(Hbin_results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "cattle",])),]
+```
+
+### goat
+```{r}
+results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
+  as.data.frame()%>%
+  subset(species %in% "Hsap")
+```
+
+```{r}
+#ah <- AnnotationHub()
+#saveRDS(ah,"All_annotation.rds")
+ah <- read_rds("All_annotation.rds") 
+#subset(ah, rdataclass == "EnsDb" & species == "Capra hircus")
+ensDb <- ah[["AH83158"]]
+ensDb
+```
+
+```{r}
+genesGR <- genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+
+```{r}
+results_Positive_select$ToEntrez <- results_Positive_select$ToEntrez%>%as.character()
+results_Positive_select <- results_Positive_select%>%
+  left_join(Genes, by = c("ToEntrez" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+colnames(results_Positive_select) <- colnames(results_Positive_select)%>%gsub("ToEntrez","entrez",.)
+```
+
+```{r}
+Hbta_results_Positive_select_GRanges <- makeGRangesFromDataFrame(results_Positive_select)
+mcols(results_Positive_select_GRanges) <- results_Positive_select
+```
+
+#### Search through our manully identified MHC immune genes
+
+```{r}
+MHC_species_gene_coordinate <- read_csv("Manul_MHC_species_gene_coordinate_table.csv")%>%
+  as.data.frame()
+
+MHC_species_gene_coordinate_MHCGRanges <- makeGRangesFromDataFrame(MHC_species_gene_coordinate)
+mcols(MHC_species_gene_coordinate_MHCGRanges) <- MHC_species_gene_coordinate
+
+
+MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "goat",]
+
+# Search for goat only
+mcols(results_Positive_select_GRanges)[queryHits(findOverlaps(results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "goat",])),]
+
+mcols(MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "goat",])[subjectHits(findOverlaps(results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "goat",])),]
+```
+
+### pig
+```{r}
+results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
+  as.data.frame()
+
+```
+
+```{r}
+#ah <- AnnotationHub()
+#saveRDS(ah,"All_annotation.rds")
+ah <- read_rds("All_annotation.rds") 
+#subset(ah, rdataclass == "EnsDb" & species == "Sus scrofa")
+ensDb <- ah[["AH83340"]]
+ensDb
+```
+
+```{r}
+genesGR <- genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+
+```{r}
+results_Positive_select$ToEntrez <- results_Positive_select$ToEntrez%>%as.character()
+results_Positive_select <- results_Positive_select%>%
+  left_join(Genes, by = c("ToEntrez" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+
+colnames(results_Positive_select) <- colnames(results_Positive_select)%>%gsub("ToEntrez","entrez",.)
+```
+
+```{r}
+results_Positive_select_GRanges <- makeGRangesFromDataFrame(results_Positive_select)
+mcols(results_Positive_select_GRanges) <- results_Positive_select
+```
+
+#### Search through our manully identified MHC immune genes
+
+```{r}
+MHC_species_gene_coordinate <- read_csv("Manul_MHC_species_gene_coordinate_table.csv")%>%
+  as.data.frame()
+
+MHC_species_gene_coordinate_MHCGRanges <- makeGRangesFromDataFrame(MHC_species_gene_coordinate)
+mcols(MHC_species_gene_coordinate_MHCGRanges) <- MHC_species_gene_coordinate
+
+
+MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "pig",]
+
+# Search for pig only
+mcols(results_Positive_select_GRanges)[queryHits(findOverlaps(results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "pig",])),]
+
+mcols(MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "pig",])[subjectHits(findOverlaps(results_Positive_select_GRanges,MHC_species_gene_coordinate_MHCGRanges[mcols(MHC_species_gene_coordinate_MHCGRanges)$species %in% "pig",])),]
+```
+
+### Location of the genes in OG
+#### Human
+```{r}
+Positive_select_immune <- mcols(results_Positive_select_immune)
+#histogram of where gap hits
+#order chr
+orderedbuff <- c("1","2","3","4","5","6","7","8","9","10","11",
+                 "12","13","14","15","16","17","18","19","20","21",
+                 "22","23","24","X")
+
+Positive_select_immune <- Positive_select_immune%>%
+  subset(seqnames %in% orderedbuff)%>%
+  subset(species %in% "Hsap")
+
+Positive_select_immune$seqnames<- factor(Positive_select_immune$seqnames, 
+                                  levels = orderedbuff)
+
+p <- ggplot2.histogram(data=Positive_select_immune, xName= 'start', 
+                  xtitle="Position (Human)",
+                  groupName='seqnames', legendPosition="right",
+                  faceting=TRUE, facetingVarNames="seqnames",
+                  binwidth = 0.1e6,yShowTitle=FALSE,yShowTickLabel=FALSE,
+                  hideAxisTicks=TRUE) 
+p
+
+tiff(filename = "Positive_select_immune_humanref.tiff",width = 800, height = 800)
+p
+dev.off()
+```
+
+#### Cattle
+
+```{r}
+#subset(ah, rdataclass == "EnsDb" & species == "Bos taurus")
+ensDb <- ah[["AH83145"]]
+ensDb
+
+genesGR <- genes(ensDb)
+genesGR
+
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Cattle_gene <- genesGR%>%
+  as.data.frame()%>%
+  extract2("gene_name")
+```
+
+```{r}
+Positive_select_immune <- mcols(results_Positive_select_immune)
+#histogram of where gap hits
+#order chr
+orderedbuff <- c("1","2","3","4","5","6","7","8","9","10","11",
+                 "12","13","14","15","16","17","18","19","20","21",
+                 "22","23","24","X")
+
+Positive_select_immune <- Positive_select_immune%>%
+  subset(seqnames %in% orderedbuff)%>%
+  subset(gene_name %in% Cattle_gene)
+
+Positive_select_immune$seqnames<- factor(Positive_select_immune$seqnames, 
+                                  levels = orderedbuff)
+
+p <- ggplot2.histogram(data=Positive_select_immune, xName= 'start', 
+                  xtitle="Position (Cattle)",
+                  groupName='seqnames', legendPosition="right",
+                  faceting=TRUE, facetingVarNames="seqnames",
+                  binwidth = 0.1e6,yShowTitle=FALSE,yShowTickLabel=FALSE,
+                  hideAxisTicks=TRUE) 
+p
+
+#tiff(filename = "Positive_select_immune_Cattleref.tiff",width = 800, height = 800)
+#p
+#dev.off()
+```
+
+#### Pig
+
+```{r}
+subset(ah, rdataclass == "EnsDb" & species == "Sus scrofa")
+ensDb <- ah[["AH7AH833405101"]]
+ensDb
+
+genesGR <- genes(ensDb)
+genesGR
+
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Pig_gene <- genesGR%>%
+  as.data.frame()%>%
+  extract2("gene_name")
+```
+
+```{r}
+Positive_select_immune <- mcols(results_Positive_select_immune)
+
+#histogram of where gap hits
+#order chr
+orderedbuff <- c("1","2","3","4","5","6","7","8","9","10","11",
+                 "12","13","14","15","16","17","18","19","20","21",
+                 "22","23","24","X")
+
+Positive_select_immune <- Positive_select_immune%>%
+  subset(seqnames %in% orderedbuff)%>%
+  subset(gene_name %in% Pig_gene)
+
+Positive_select_immune$seqnames<- factor(Positive_select_immune$seqnames, 
+                                  levels = orderedbuff)
+
+p <- ggplot2.histogram(data=Positive_select_immune, xName= 'start', 
+                  xtitle="Position (Pig)",
+                  groupName='seqnames', legendPosition="right",
+                  faceting=TRUE, facetingVarNames="seqnames",
+                  binwidth = 0.1e6,yShowTitle=FALSE,yShowTickLabel=FALSE,
+                  hideAxisTicks=TRUE) 
+p
+
+tiff(filename = "Positive_select_immune_Pigref.tiff",width = 800, height = 800)
+p
+dev.off()
+```
+
+#### Goat
+
+```{r}
+#subset(ah, rdataclass == "EnsDb" & species == "Capra hircus")
+ensDb <- ah[["AH83158"]]
+ensDb
+
+genesGR <- genes(ensDb)
+genesGR
+
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Goat_gene <- genesGR%>%
+  as.data.frame()%>%
+  extract2("gene_name")
+```
+
+```{r}
+Positive_select_immune <- mcols(results_Positive_select_immune)
+
+#histogram of where gap hits
+#order chr
+orderedbuff <- c("1","2","3","4","5","6","7","8","9","10","11",
+                 "12","13","14","15","16","17","18","19","20","21",
+                 "22","23","24","X")
+
+Positive_select_immune <- Positive_select_immune%>%
+  subset(seqnames %in% orderedbuff)%>%
+  subset(gene_name %in% Goat_gene)
+
+Positive_select_immune$seqnames<- factor(Positive_select_immune$seqnames, 
+                                  levels = orderedbuff)
+
+p <- ggplot2.histogram(data=Positive_select_immune, xName= 'start', 
+                  xtitle="Position (Goat)",
+                  groupName='seqnames', legendPosition="right",
+                  faceting=TRUE, facetingVarNames="seqnames",
+                  binwidth = 0.1e6,yShowTitle=FALSE,yShowTickLabel=FALSE,
+                  hideAxisTicks=TRUE) 
+p
+
+tiff(filename = "Positive_select_immune_Goatref.tiff",width = 800, height = 800)
+p
+dev.off()
+```
+
+

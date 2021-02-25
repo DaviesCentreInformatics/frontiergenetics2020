@@ -1,0 +1,743 @@
+---
+title: "Babesia orf2 tblastn"
+author: "Lloyd & Kelly"
+date: "12/05/2020"
+output: html_document
+---
+
+```{r}
+#------------------------------------------------------
+# Program name: Babesia_orf2_tblastn.R
+# Objective: this script follows from buffalo_NextGenAssembly_MHC2.R
+#           but the difference is the tblastn results table
+#           will be used for a more detailed analysis
+# Author: Lloyd Low and Kelly Ren
+# Email add: lloydlow@hotmail.com
+#------------------------------------------------------
+```
+
+# Loading packages
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(easyGgplot2)
+library(ape)
+library(GenomicRanges)
+library(gdata)
+library(magrittr)
+library(reshape2)
+```
+
+# Data input
+## Read a file list
+```{r}
+# path to folder that holds multiple .tblnm7 files
+folder <- ("Input/Babesia_tblastn_output_20200901")
+
+# create list of all .tblnm7 files in folder
+file_list <- list.files(path=folder, pattern="*.tblnm7") 
+
+# read in each .tblnm7 file in file_list and 
+# create a data frame with the same name as the .tblnm7 file
+for (i in 1:length(file_list)){
+  assign(file_list[i], read_tsv(paste0(folder, "/",file_list[i]),comment = "#",col_names = FALSE,
+                                col_types = list(col_character(), col_character(),col_double(), 
+                                                 col_integer(),col_integer(),col_integer(),
+                                                 col_integer(),col_integer(),col_integer(),
+                                                 col_integer(),col_double(),col_double())))
+}
+```
+
+### cattle_ucd
+```{r}
+#cattle_ucd
+cattle_ucd <- Babesia_ovata_LINE1_vs_cattle_ucd.tblnm7
+rm(Babesia_ovata_LINE1_vs_cattle_ucd.tblnm7)
+colnames(cattle_ucd) <- c("query", "seqid", "perc_id", "alignlength", 
+                            "mismatches", "gap", "qstart", "qend", "start", "end", 
+                            "evalue", "score")
+
+cattle_ucd_rename <- read_delim("Input/Babesia_tblastn_output_20200901/cattle_ucd.rename.csv",",", col_names = FALSE)
+# cattle_ucdgff <- read.gff("assembly_full_sequence_report/GCF_002263795.1_ARS-UCD1.2_genomic.gff")
+# saveRDS(cattle_ucdgff,"cattle_ucdgff.rds")
+cattle_ucdgff <- read_rds("Input/Species_annotation/cattle_ucdgff.rds")
+cattle_ucdgff <- subset(cattle_ucdgff, seqid %in% intersect(cattle_ucdgff$seqid,cattle_ucd_rename$X2))
+
+# Change the chr names
+for (i in 1:nrow(cattle_ucd_rename)){
+  logic <- cattle_ucd$seqid %in% cattle_ucd_rename$X2[i]
+  cattle_ucd$seqid[logic] <- cattle_ucd_rename$X1[i]
+  cattle_ucdgff$seqid <- gsub(cattle_ucd_rename$X2[i],cattle_ucd_rename$X1[i],cattle_ucdgff$seqid)}
+
+head(cattle_ucdgff)
+
+cattle_ucd <- as.data.frame(cattle_ucd)
+```
+
+### river_buffalo
+```{r}
+#river_buffalo
+river_buffalo <- Babesia_ovata_LINE1_vs_frozenbuff.tblnm7
+rm(Babesia_ovata_LINE1_vs_frozenbuff.tblnm7)
+colnames(river_buffalo) <- c("query", "seqid", "perc_id", "alignlength", 
+                             "mismatches", "gap", "qstart", "qend", "start", "end", 
+                             "evalue", "score")
+
+#seqid names not in "1","2", ...
+#read in ncbi assembly full seq report that has been processed to fix this
+river_buffalo_rename <- read_delim("Input/Babesia_tblastn_output_20200901/river_buffalo.rename.csv",",",col_names = FALSE)
+
+# river_buffalogff <- read.gff("assembly_full_sequence_report/GCF_003121395.1_ASM312139v1_genomic.gff")
+# saveRDS(river_buffalogff,"river_buffalogff.rds")
+river_buffalogff <- read_rds("Input/Species_annotation/river_buffalogff.rds")
+
+river_buffalogff <- subset(river_buffalogff, seqid %in% intersect(river_buffalogff$seqid,river_buffalo_rename$X2))
+
+# Change the chr names
+for (i in 1:nrow(river_buffalo_rename)){
+  logic <- river_buffalo$seqid %in% river_buffalo_rename$X2[i]
+  river_buffalo$seqid[logic] <- river_buffalo_rename$X1[i]
+  
+  river_buffalogff$seqid <- gsub(river_buffalo_rename$X2[i],river_buffalo_rename$X1[i],river_buffalogff$seqid)}
+
+river_buffalo <- as.data.frame(river_buffalo)
+```
+
+### goat
+```{r}
+#goat
+goat <- Babesia_ovata_LINE1_vs_goat_ars1.tblnm7
+rm(Babesia_ovata_LINE1_vs_goat_ars1.tblnm7)
+colnames(goat) <- c("query", "seqid", "perc_id", "alignlength", 
+                             "mismatches", "gap", "qstart", "qend", "start", "end", 
+                             "evalue", "score")
+#need to clean X1 and X2. Unplaced is not in this genome
+goat$seqid[goat$seqid == "X1" | goat$seqid == "X2"] <- "X"
+
+#seqid names not in "1","2", ...
+#read in ncbi assembly full seq report that has been processed to fix this
+goat_rename <- read_delim("Input/Babesia_tblastn_output_20200901/goat.rename.csv",",",col_names = FALSE)
+# goatgff <- read.gff("assembly_full_sequence_report/GCF_001704415.1_ARS1_genomic.gff")
+# saveRDS(goatgff,"goatgff.rds")
+goatgff <- read_rds("Input/Species_annotation/goatgff.rds")
+
+goatgff <- subset(goatgff, seqid %in% intersect(goatgff$seqid,goat_rename$X2))
+
+for (i in 1:nrow(goat_rename)){
+  logic <- goat$seqid %in% goat_rename$X2[i]
+  goat$seqid[logic] <- goat_rename$X1[i]
+  
+  goatgff$seqid <- gsub(goat_rename$X2[i],goat_rename$X1[i],goatgff$seqid)}
+
+goat <- as.data.frame(goat)
+
+goat$seqid[goat$seqid == "X1" | goat$seqid == "X2"] <- "X"
+goatgff$seqid[goatgff$seqid == "X1" | goatgff$seqid == "X2"] <- "X"
+
+```
+### brahman
+```{r}
+#brahman
+brahman <- Babesia_ovata_LINE1_vs_Brahman.tblnm7
+rm(Babesia_ovata_LINE1_vs_Brahman.tblnm7)
+colnames(brahman) <- c("query", "seqid", "perc_id", "alignlength", 
+                       "mismatches", "gap", "qstart", "qend", "start", "end", 
+                       "evalue", "score")
+
+brahman_rename <- read_delim("Input/Babesia_tblastn_output_20200901/brahman.rename.csv",",", col_names = FALSE)
+# brahmangff <- read.gff("assembly_full_sequence_report/GCF_003369695.1_UOA_Brahman_1_genomic.gff")
+# saveRDS(brahmangff,"brahmangff.rds")
+brahmangff <- read_rds("Input/Species_annotation/brahmangff.rds")
+
+brahmangff <- subset(brahmangff, seqid %in% intersect(brahmangff$seqid,brahman_rename$X2))
+
+for (i in 1:nrow(brahman_rename)){
+  logic <- brahman$seqid %in% brahman_rename$X2[i]
+  brahman$seqid[logic] <- brahman_rename$X1[i]
+  
+  brahmangff$seqid <- gsub(brahman_rename$X2[i],brahman_rename$X1[i],brahmangff$seqid)}
+brahman <- as.data.frame(brahman)
+```
+
+### human
+
+```{r}
+#human
+human <- Babesia_ovata_LINE1_vs_human_GRCh38.tblnm7
+rm(Babesia_ovata_LINE1_vs_human_GRCh38.tblnm7)
+colnames(human) <- c("query", "seqid", "perc_id", "alignlength", 
+                    "mismatches", "gap", "qstart", "qend", "start", "end", 
+                    "evalue", "score")
+
+#seqid names not in "1","2", ...
+#read in ncbi assembly full seq report that has been processed to fix this
+human_rename <- read_delim("Input/Babesia_tblastn_output_20200901/human.rename.csv",",",col_names = FALSE)
+# humangff <- read.gff("assembly_full_sequence_report/GCF_000001405.39_GRCh38.p13_genomic.gff")
+# saveRDS(humangff,"humangff.rds")
+humangff <- read_rds("Input/Species_annotation/humangff.rds")
+
+humangff <- subset(humangff, seqid %in% intersect(humangff$seqid,human_rename$X2))
+
+for (i in 1:nrow(human_rename)){
+  logic <- human$seqid %in% human_rename$X2[i]
+  human$seqid[logic] <- human_rename$X1[i]
+  
+  humangff$seqid <- gsub(human_rename$X2[i],human_rename$X1[i],humangff$seqid)}
+
+human <- as.data.frame(human)
+```
+
+### pig
+```{r}
+#pig
+pig <- Babesia_ovata_LINE1_vs_pig_Sscrofa11.tblnm7
+rm(Babesia_ovata_LINE1_vs_pig_Sscrofa11.tblnm7)
+colnames(pig) <- c("query", "seqid", "perc_id", "alignlength", 
+                     "mismatches", "gap", "qstart", "qend", "start", "end", 
+                     "evalue", "score")
+#seqid names not in "1","2", ...
+#read in ncbi assembly full seq report that has been processed to fix this
+pig_rename <- read_delim("Input/Babesia_tblastn_output_20200901/pig.rename.csv",",",col_names = FALSE)
+#piggff <- read.gff("assembly_full_sequence_report/GCF_001704415.1_ARS1_genomic.gff")
+#saveRDS(piggff,"piggff.rds")
+piggff <- read_rds("Input/Species_annotation/piggff.rds")
+piggff <- subset(piggff, seqid %in% intersect(piggff$seqid,pig_rename$X2))
+
+for (i in 1:nrow(pig_rename)){
+  logic <- pig$seqid %in% pig_rename$X2[i]
+  pig$seqid[logic] <- pig_rename$X1[i]
+  
+piggff$seqid <- gsub(pig_rename$X2[i],pig_rename$X1[i],piggff$seqid)}
+
+pig <- as.data.frame(pig)
+```
+
+
+```{r}
+#filter out unwanted chr
+chr_wanted <- c("1","2","3","4","5","6","7","8","9","10","11",
+                "12","13","14","15","16","17","18","19","20","21",
+                "22","23","24","25","26","27","28","29","X")
+
+```
+
+
+```{r}
+cattle_ucd_chr1toX <- cattle_ucd[cattle_ucd$seqid %in% chr_wanted,]
+cattle_ucd_chr1toX$species <- "cattle ucd"
+
+river_buffalo_chr1toX <- river_buffalo[river_buffalo$seqid %in% chr_wanted,]
+river_buffalo_chr1toX$species <- "river buffalo"
+
+goat_chr1toX <- goat[goat$seqid %in% chr_wanted,]
+goat_chr1toX$species <- "goat"
+
+human_chr1toX <- human[human$seqid %in% chr_wanted,]
+human_chr1toX$species <- "human"
+
+pig_chr1toX <- pig[pig$seqid %in% chr_wanted,]
+pig_chr1toX$species <- "pig"
+
+brahman_chr1toX <- brahman[brahman$seqid %in% chr_wanted,]
+brahman_chr1toX$species <- "brahman"
+
+spp_df <- rbind(cattle_ucd_chr1toX,river_buffalo_chr1toX,goat_chr1toX,human_chr1toX,pig_chr1toX,brahman_chr1toX)
+
+#order species for boxplot
+spp_orderer <- c("river buffalo", "cattle ucd", "brahman", "goat", "pig", "human")
+spp_df$species <- factor(spp_df$species, levels = spp_orderer)
+
+```
+
+# Analysis
+## overlap with genes
+```{r}
+filtered_spp_df <- spp_df %>% 
+  dplyr::filter(alignlength > 1009) %>% 
+  dplyr::filter(perc_id > 90) %>% 
+  group_by(species,seqid)%>%
+  as.data.frame()
+
+for (i in 1:nrow(filtered_spp_df)){
+  if (filtered_spp_df$start[i] > filtered_spp_df$end[i]){
+    temp <- filtered_spp_df$start[i]
+    filtered_spp_df$start[i] <- filtered_spp_df$end[i]
+    filtered_spp_df$end[i] <- temp 
+  }
+}
+
+filtered_spp_dfGRanges <- filtered_spp_df[,c("seqid","start", "end", "species")]%>%
+  makeGRangesFromDataFrame()
+filtered_spp_dfGRanges$species <- filtered_spp_df$species
+```
+
+### cattle_ucd
+```{r}
+cattle_ucdgff$seqid <- cattle_ucdgff$seqid%>%
+  gsub(" X", "X",.)
+cattle_ucdGRanges <- cattle_ucdgff[grep("protein_coding", cattle_ucdgff[,9]),]%>%
+  unique()%>%
+  makeGRangesFromDataFrame()
+
+cattle_ucd_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, species %in% "cattle ucd")),drop.levels(cattle_ucdGRanges))
+
+cattle_ucd_Geneoverlap%>%
+  length()
+```
+
+### river_buffalo
+```{r}
+river_buffaloGRanges <- makeGRangesFromDataFrame(river_buffalogff)
+river_buffalogff$seqid <- river_buffalogff$seqid%>%
+  gsub(" X", "X",.)
+
+river_buffaloGRanges <- river_buffalogff[grep("protein_coding", river_buffalogff[,9]),]%>%
+  unique()%>%
+  makeGRangesFromDataFrame()
+
+river_buffalo_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, species %in% "river buffalo")),drop.levels(river_buffaloGRanges))
+
+river_buffalo_Geneoverlap%>%
+  length()
+```
+
+### goat
+```{r}
+goatGRanges <- makeGRangesFromDataFrame(goatgff)
+goatgff$seqid <- goatgff$seqid%>%
+  gsub(" X", "X",.)
+goatGRanges <- goatgff[grep("protein_coding", goatgff[,9]),]%>%
+  unique()%>%
+  makeGRangesFromDataFrame()
+
+goat_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, species %in% "goat")),drop.levels(goatGRanges))
+
+goat_Geneoverlap%>%
+  length()
+```
+
+### brahman
+```{r}
+brahmanGRanges <- makeGRangesFromDataFrame(brahmangff)
+brahmangff$seqid <- brahmangff$seqid%>%
+  gsub(" X", "X",.)
+brahmanGRanges <- brahmangff[grep("protein_coding", brahmangff[,9]),]%>%
+  unique()%>%
+  makeGRangesFromDataFrame()
+
+brahman_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, species %in% "brahman")),drop.levels(brahmanGRanges))
+
+brahman_Geneoverlap%>%
+  length()
+```
+
+### human
+
+```{r}
+humanGRanges <- makeGRangesFromDataFrame(humangff)
+humangff$seqid <- humangff$seqid%>%
+  gsub(" X", "X",.)
+
+humanGRanges <- humangff[humangff$seqid != "Y",]
+  
+humanGRanges <- humanGRanges[grep("protein_coding", humanGRanges[,9]),]%>%
+  unique()%>%
+  makeGRangesFromDataFrame()
+
+human_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, species %in% "human")),drop.levels(humanGRanges))
+
+human_Geneoverlap%>%
+  length()
+```
+
+### pig
+
+```{r}
+pigGRanges <- makeGRangesFromDataFrame(piggff)
+piggff$seqid <- piggff$seqid%>%
+  gsub(" X", "X",.)
+pigGRanges <- piggff[piggff$seqid != "Y",]%>%
+  makeGRangesFromDataFrame()
+
+pig_Geneoverlap <- findOverlaps(drop.levels(subset(filtered_spp_dfGRanges, species %in% "pig")),drop.levels(pigGRanges))
+
+pig_Geneoverlap%>%
+  length()
+```
+
+
+
+```{r}
+# cattle_ucd
+trans_type_cattle_ucd <- cattle_ucdgff[subjectHits(cattle_ucd_Geneoverlap),]%>%
+  unique()%>%
+  extract2("type")%>%
+  table%>%
+  melt()%>%
+  set_colnames(c("trans_type", "cattle_ucd"))%>%
+  filter(cattle_ucd > 0)
+
+# river_buffalo
+trans_type_river_buffalo <- river_buffalogff[subjectHits(river_buffalo_Geneoverlap),]%>%
+  unique()%>%
+  extract2("type")%>%
+  table%>%
+  melt()%>%
+  set_colnames(c("trans_type", "river_buffalo"))%>%
+  filter(river_buffalo > 0)
+
+# goat
+trans_type_goat <- goatgff[subjectHits(goat_Geneoverlap),]%>%
+  unique()%>%
+  extract2("type")%>%
+  table%>%
+  melt()%>%
+  set_colnames(c("trans_type", "goat"))%>%
+  filter(goat > 0)
+
+# brahman
+trans_type_brahman <- brahmangff[subjectHits(brahman_Geneoverlap),]%>%
+  unique()%>%
+  extract2("type")%>%
+  table%>%
+  melt()%>%
+  set_colnames(c("trans_type", "brahman"))%>%
+  filter(brahman > 0)
+
+trans_type <- left_join(left_join(left_join(trans_type_cattle_ucd,trans_type_river_buffalo),trans_type_goat),trans_type_brahman)%>%
+  set_colnames(c("trans_type", "European cattle", "River buffalo", "Goat", "Indian cattle"))
+trans_type[is.na(trans_type)] <- 0
+
+trans_type%>%
+  melt()%>%
+  set_colnames(c("trans_type", "species", "Propotion"))%>%
+  ggplot(aes(x=" ", y=Propotion, fill=trans_type))+
+  geom_bar(width = 1, stat = "identity", position = position_fill())+
+  coord_polar("y", start=0)+
+  facet_wrap(~ species) + 
+  theme_bw() +   
+  scale_fill_brewer(name="Transcript type",palette="Spectral") 
+
+ggsave(path = "Output/Babesia_orf2_tblastn","Propotionfordifferenttranscripttypes.pdf", height=10, width=10, device="pdf", useDingbats=F)
+```
+
+```{r}
+list_trans_type <- list(cattle_ucdgff[subjectHits(cattle_ucd_Geneoverlap),],river_buffalogff[subjectHits(river_buffalo_Geneoverlap),],goatgff[subjectHits(goat_Geneoverlap),],brahmangff[subjectHits(brahman_Geneoverlap),],humangff[subjectHits(human_Geneoverlap),],piggff[subjectHits(pig_Geneoverlap),])
+
+names(list_trans_type) <- c("European cattle","River buffalo","Goat","Indian cattle","Human","Pig")
+list_trans_type <- lapply(1:length(list_trans_type), FUN = function(x, object = list_trans_type){
+  object[[x]]%>%mutate(species = rep(names(object[x]), dim(object[[x]])[1]))
+})%>%do.call("rbind",.)
+
+list_trans_type_count_per_chr <- list_trans_type %>% 
+  subset(type == "gene") %>% #### gene
+  unique()%>%
+  group_by(species,seqid) %>%
+    summarise(count = n())
+
+#order chr
+list_trans_type_count_per_chr$species <- factor(list_trans_type_count_per_chr$species, levels = c("River buffalo","European cattle","Indian cattle","Goat","Human","Pig"))
+list_trans_type_count_per_chr$seqid <- factor(list_trans_type_count_per_chr$seqid, levels = chr_wanted)
+
+#number of hits for each species
+sum(subset(list_trans_type_count_per_chr, list_trans_type_count_per_chr$species == "River buffalo")%>%extract2("count"))
+sum(subset(list_trans_type_count_per_chr, list_trans_type_count_per_chr$species == "European cattle")%>%extract2("count"))
+sum(subset(list_trans_type_count_per_chr, list_trans_type_count_per_chr$species == "Indian cattle")%>%extract2("count"))
+sum(subset(list_trans_type_count_per_chr, list_trans_type_count_per_chr$species == "Goat")%>%extract2("count"))
+
+ggplot(data = list_trans_type_count_per_chr, aes(x = seqid, y = count, fill = species))+
+  geom_bar(stat = "identity") + coord_flip() + facet_grid(~species)+
+  ylab("Number of hits on genes") +
+  xlab("Chromosome")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_fill_manual(name="Species",values=c("#00B0BA", "#FFA23A", "#FFEC59", "#FF5C77"))+
+  theme_bw()
+
+#barplot of tblastn hits per chromosome per spp
+
+ggsave(path = "Output/Babesia_orf2_tblastn","NumberofhitsongeneBOVATA.pdf", height=10, width=10, device="pdf", useDingbats=F)
+
+```
+
+
+```{r}
+list_trans_type %>% 
+  subset(type == "gene") %>% #### gene
+  unique()%>%
+  subset(species %in% "River buffalo")
+```
+
+## overlap with Manul MHCI and II
+
+### cattle_ucd
+
+```{r}
+cattle_ucd_MHC <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+   subset(species %in% "Btau")
+cattle_ucd_MHCGRanges <- makeGRangesFromDataFrame(cattle_ucd_MHC)
+```
+
+```{r}
+cattle_ucd_MHCoverlap <- findOverlaps(subset(filtered_spp_dfGRanges, species %in% "cattle ucd"),cattle_ucd_MHCGRanges)
+cattle_ucd_MHCoverlap 
+```
+
+```{r}
+cattle_ucd_MHC[subjectHits(cattle_ucd_MHCoverlap),]
+```
+
+### river_buffalo
+```{r}
+river_buffalo_MHC <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+  subset(species %in% "Bbub")
+river_buffalo_MHCGRanges <- makeGRangesFromDataFrame(river_buffalo_MHC)
+```
+
+```{r}
+river_buffalo_MHCoverlap <- findOverlaps(subset(filtered_spp_dfGRanges, species %in% "river buffalo"),river_buffalo_MHCGRanges)
+river_buffalo_MHCoverlap 
+```
+
+```{r}
+river_buffalo_MHC[subjectHits(river_buffalo_MHCoverlap),]%>%
+  as.data.frame()
+subset(filtered_spp_dfGRanges, species %in% "river buffalo")[queryHits(river_buffalo_MHCoverlap),]%>%
+  as.data.frame()
+```
+
+### goat
+
+```{r}
+goat_MHC <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+  subset(species %in% "Chir")
+goat_MHCGRanges <- makeGRangesFromDataFrame(goat_MHC)
+```
+
+```{r}
+goat_MHCoverlap <- findOverlaps(subset(filtered_spp_dfGRanges, species %in% "goat"),goat_MHCGRanges)
+goat_MHCoverlap 
+```
+
+```{r}
+goat_MHC[subjectHits(goat_MHCoverlap),]
+```
+
+### brahman
+
+```{r}
+brahman_MHC <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+   subset(species %in% "Bind")
+brahman_MHCGRanges <- makeGRangesFromDataFrame(brahman_MHC)
+```
+
+```{r}
+brahman_MHCoverlap <- findOverlaps(subset(filtered_spp_dfGRanges, species %in% "brahman"),brahman_MHCGRanges)
+brahman_MHCoverlap 
+```
+
+```{r}
+brahman_MHC[subjectHits(brahman_MHCoverlap),]
+```
+
+### human
+
+```{r}
+human_MHC <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+   subset(species %in% "Hsap")
+human_MHCGRanges <- makeGRangesFromDataFrame(human_MHC)
+```
+
+```{r}
+human_MHCoverlap <- findOverlaps(subset(filtered_spp_dfGRanges, species %in% "human"),human_MHCGRanges)
+human_MHCoverlap 
+```
+
+```{r}
+human_MHC[subjectHits(human_MHCoverlap),]
+```
+
+### pig
+```{r}
+pig_MHC <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+   subset(species %in% "Sscr")
+pig_MHCGRanges <- makeGRangesFromDataFrame(pig_MHC)
+```
+
+```{r}
+pig_MHCoverlap <- findOverlaps(subset(filtered_spp_dfGRanges, species %in% "pig"),pig_MHCGRanges)
+pig_MHCoverlap 
+```
+
+```{r}
+pig_MHC[subjectHits(pig_MHCoverlap),]
+```
+# visualization
+## Barplot
+```{r}
+#filter for align length > 1009 and percentage identity > 90
+spp_df_count_per_chr <- spp_df %>% 
+  dplyr::filter(alignlength > 1009) %>% 
+  dplyr::filter(perc_id > 90) %>% 
+  group_by(species,seqid) %>% summarise(count = n())
+
+#order chr
+spp_df_count_per_chr$seqid <- factor(spp_df_count_per_chr$seqid, levels = chr_wanted)
+
+#number of hits in the river buffalo genome
+sum(spp_df_count_per_chr$count[spp_df_count_per_chr$species == "river buffalo"])
+sum(spp_df_count_per_chr$count[spp_df_count_per_chr$species == "cattle ucd"])
+sum(spp_df_count_per_chr$count[spp_df_count_per_chr$species == "brahman"])
+sum(spp_df_count_per_chr$count[spp_df_count_per_chr$species == "goat"])
+
+#number of hits in the river buffalo, cattle ucd, brahman and goat genomes
+sum(spp_df_count_per_chr$count)
+
+spp_df_count_per_chr$species <- spp_df_count_per_chr$species%>%
+  gsub("river buffalo", "River buffalo",.)%>%
+  gsub("cattle ucd", "European cattle",.)%>%
+  gsub("brahman", "Indian cattle",.)%>%
+  gsub("goat", "Goat",.)%>%
+  gsub("human", "Human",.)%>%
+  gsub("pig", "Pig",.)
+  
+#order species for boxplot
+spp_orderer <- c("River buffalo", "European cattle", "Indian cattle", "Goat", "Pig", "Human")
+spp_df_count_per_chr$species <- factor(spp_df_count_per_chr$species, levels = spp_orderer)
+
+ggplot(data = spp_df_count_per_chr, aes(x = seqid, y = count, fill = species))+
+  geom_bar(stat = "identity") + coord_flip() + facet_grid(~species)+
+  ylab("Count of TBLASTN hits, align length > 1009, percent id > 90")+
+  xlab("Chromosome")+ 
+  ggtitle("Number of TBLAST hits per chromosome by species") + theme(plot.title = element_text(hjust = 0.5))+
+  scale_fill_manual(name="Species",values=c("#00B0BA", "#FFA23A", "#FFEC59", "#FF5C77", "#74737A", "4DD091"))+
+  theme_bw()
+
+#barplot of tblastn hits per chromosome per spp
+ggsave(path = "Output/Babesia_orf2_tblastn","NumberOfTBLASTNhitsBOVATA.pdf", height=10, width=10, device="pdf", useDingbats=F)
+
+spp_df_length_1009 <- spp_df %>% 
+  filter(alignlength > 1009)
+```
+
+## Boxplot
+
+```{r}
+spp_df_length_1009$species <- spp_df_length_1009$species%>%
+  gsub("river buffalo", "River buffalo",.)%>%
+  gsub("cattle ucd", "European cattle",.)%>%
+  gsub("brahman", "Indian cattle",.)%>%
+  gsub("goat", "Goat",.)%>%
+  gsub("human", "Human",.)%>%
+  gsub("pig", "Pig",.)
+
+spp_df_length_1009$species <- factor(spp_df_length_1009$species,level=c("River buffalo","European cattle","Indian cattle","Goat","Pig","Human"))
+
+
+#boxplot
+ggplot(spp_df_length_1009, aes(x=as.factor(species),y=perc_id,fill=species))+
+  geom_boxplot(alpha=0.5)+
+  xlab("species") + ylab("Percentage identities")+
+  ggtitle("Boxplot of percentage identities when align length > 1009")+
+  theme(plot.title = element_text(hjust = 0.5),axis.text=element_text(size=13),axis.title=element_text(size=15))+ 
+  scale_fill_manual(name="Species",values=c("#00B0BA", "#FFA23A", "#FFEC59", "#FF5C77", "#74737A", "4DD091"))+
+  theme_bw()
+
+ggsave(path = "Output/Babesia_orf2_tblastn","boxplot_1009.pdf",width=10, device="pdf", useDingbats=F)
+
+
+spp_df_length_785 <- spp_df %>% 
+  filter(alignlength > 785)
+
+#boxplot
+ggplot(spp_df_length_785, aes(x=as.factor(species),y=perc_id,fill=species))+
+  geom_boxplot(alpha=0.5)+
+  xlab("species") + ylab("Percentage identities")+
+  ggtitle("Boxplot of percentage identities when align length > 785")+
+  theme(plot.title = element_text(hjust = 0.5),axis.text=element_text(size=13),axis.title=element_text(size=15))+ 
+  scale_fill_manual(name="Species",values=c("#00B0BA", "#FFA23A", "#FFEC59", "#FF5C77", "#74737A", "4DD091"))+
+  theme_bw()
+
+ggsave(path = "Output/Babesia_orf2_tblastn","boxplot_785.pdf",width=10, device="pdf", useDingbats=F)
+
+
+spp_df_length_561 <- spp_df %>% filter(alignlength > 561)
+
+#boxplot
+ggplot(spp_df_length_561, aes(x=as.factor(species),y=perc_id))+
+  geom_boxplot(fill="slateblue", alpha=0.5)+
+  xlab("species") + ylab("Percentage identities")+
+  ggtitle("Boxplot of percentage identities when align length > 561")+
+  theme(plot.title = element_text(hjust = 0.5),axis.text=element_text(size=13),axis.title=element_text(size=15))+ 
+  theme_bw()
+
+ggsave(path = "Output/Babesia_orf2_tblastn","boxplot_561.pdf",width=10, device="pdf", useDingbats=F)
+
+```
+
+## Location of the hits
+```{r}
+#location of highly conserved retro hits, when align length > 1009, perc_id > 0.9
+#river buffalo
+spp_df_len1009_id90 <- spp_df %>% filter(alignlength > 1009) %>% filter(perc_id > 90) %>%
+  filter(species == "river buffalo")
+
+#histogram of where gap hits
+#order chr
+orderedbuff <- c("X","29","28","27","26","25","24","23","22","21","20",
+                 "19","18","17","16","15","14","13","12","11","10",
+                 "9","8","7","6","5","4","3","2","1")
+spp_df_len1009_id90$seqid <- factor(spp_df_len1009_id90$seqid, 
+                                  levels = orderedbuff)
+
+ggplot2.histogram(data=spp_df_len1009_id90, xName= 'start', 
+                  xtitle="Position",
+                  groupName='seqid', legendPosition="right",
+                  faceting=TRUE, facetingVarNames="seqid",
+                  binwidth = 0.1e6,yShowTitle=FALSE,yShowTickLabel=T,
+                  hideAxisTicks=TRUE) 
+
+#brahman
+spp_df_len1009_id90_brahman <- spp_df %>% filter(alignlength > 1009) %>% filter(perc_id > 90) %>%
+  filter(species == "brahman")
+
+#histogram of where gap hits
+#order chr
+orderedbrahman <- c("X","29","28","27","26","25","24","23","22","21","20",
+                 "19","18","17","16","15","14","13","12","11","10",
+                 "9","8","7","6","5","4","3","2","1")
+spp_df_len1009_id90_brahman$seqid <- factor(spp_df_len1009_id90_brahman$seqid, 
+                                      levels = orderedbrahman)
+
+ggplot2.histogram(data=spp_df_len1009_id90_brahman, xName= 'start', xtitle="Position",
+                  groupName='seqid', legendPosition="right",
+                  faceting=TRUE, facetingVarNames="seqid",
+                  binwidth = 0.1e6,yShowTitle=FALSE,yShowTickLabel=FALSE,
+                  hideAxisTicks=TRUE) 
+
+ggsave(path = "Output/Babesia_orf2_tblastn","brahman_retro_position.pdf",width=10, height=10,device="pdf", useDingbats=F)
+
+
+#cattle
+spp_df_len1009_id90_cattle <- spp_df %>% filter(alignlength > 1009) %>% filter(perc_id > 90) %>%
+  filter(species =="cattle ucd")
+
+#histogram of where gap hits
+#order chr
+orderedbrahman <- c("1","2","3","4","5","6","7","8","9","10","11",
+                 "12","13","14","15","16","17","18","19","20","21",
+                 "22","23","24","25","26","27","28","29","X")
+spp_df_len1009_id90_cattle$seqid <- factor(spp_df_len1009_id90_cattle$seqid, 
+                                      levels = orderedbrahman)
+
+ggplot2.histogram(data=spp_df_len1009_id90_cattle, xName= 'start', xtitle="Position",
+                  groupName='seqid', legendPosition="right",
+                  faceting=TRUE, facetingVarNames="seqid",
+                  binwidth = 0.1e6,yShowTitle=FALSE,yShowTickLabel=FALSE,
+                  hideAxisTicks=TRUE) 
+
+ggsave(path = "Output/Babesia_orf2_tblastn","cattle_retro_position.pdf",width=10, height=10,device="pdf", useDingbats=F)
+
+```
+
