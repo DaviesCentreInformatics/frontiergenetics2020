@@ -3,7 +3,7 @@ This repository contains custom scripts used to prepare CAFE and PAML input and 
 A script for checking the MHC gene coordinates and Babesia blast hits is also included in the repository.
 These scripts have been used in the paper "Adaptive signatures of river buffalo in protein degradation, olfactory receptor, detoxification and immune system". 
 
-The upstream synteny pipeline <https://gitlab.com/sandve-lab/salmonid_synteny> was used on six species as listed in the manuscript. The speciesMetadata_buffalo_20200729.yaml file to initiate this pipeline is given in this directory. 
+The synteny pipeline <https://gitlab.com/sandve-lab/salmonid_synteny> was used on six species as listed in the manuscript. The speciesMetadata_buffalo_20200729.yaml file to initiate this pipeline is given in this directory. 
 
 ## Table of Content
 Inside the buffalo folder, you will find the script and associated input/output. As some scripts have dependencies on output from other scripts, it may be best to run the script in the order specified below
