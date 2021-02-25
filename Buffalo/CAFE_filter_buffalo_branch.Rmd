@@ -1,0 +1,164 @@
+---
+title: "The branch for buffalo"
+author: "Kelly Ren"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2: default
+bibliography: FinalthesisRef.bib
+link-citations: yes
+fig_caption: yes
+toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+#------------------------------------------------------
+# Program name: CAFE_filter_buffalo.Rmd
+# Objective: this script find the specific branch for buffalo from the CAFE output and find the changed genes that specific to the branch. The GO and KEGG enrichment analysis was done base on those changed genes and immune genes respectively.
+# Author: Kelly Ren
+# Email add: KellyDREN@gmail.com
+#------------------------------------------------------
+```
+
+# Packages
+
+```{r}
+library(ggplot2)
+library(easyGgplot2)
+library(magrittr)
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyverse)
+library(readxl)
+library(gtools)
+library(tibble)
+library(reshape2)
+library(limma)
+library(ReactomePA)
+library(clusterProfiler)
+library(GenomicFeatures)
+
+'%!in%' <- function(x,y)!('%in%'(x,y))
+```
+
+# Analysis
+## The test result in specifc for few lines
+
+```{r}
+# read a test result only cotain few line, in which we know the gene evolution in buffalo for those families.
+
+# Desc	FAMILY	Bbub	Chir	Hbin	Hbta	Hsap	Sscr
+# (null)	PTHR10003	3	3	3	3	3	3
+# (null)	PTHR10005	3	3	3	3	3	3
+# (null)	PTHR10006	1	1	1	1	1	1
+# (null)	PTHR10010	3	3	3	3	3	3
+# (null)	PTHR10012	1	1	1	1	1	1
+# (null)	PTHR10013	1	1	1	1	1	1
+# (null)	PTHR10015	14 6 8 8 10	29
+
+#Expansion :	(0,0)	(0,1)	(0,0)	(0,1)	(1,0)
+#nRemain :	(7,7)	(6,6)	(7,6)	(6,6)	(6,6)
+#nDecrease :	(0,0)	(1,0)	(0,1)	(1,0)	(0,1)
+
+report_runmodel1_test <- read.table("Input/From_CAFE/report_runmodel1_test.cafe", skip = 11)%>%
+  set_colnames(c("FAMILY", "Newick_tree", "Family_wide_P_value","Viterbi_P_values"))
+
+
+# We know only PTHR10015 has significance
+report_runmodel1_test <- subset(report_runmodel1_test, Family_wide_P_value < 0.05)
+report_runmodel1_test
+
+report_runmodel1_test <- report_runmodel1_test[,c("FAMILY","Family_wide_P_value","Viterbi_P_values")]
+report_runmodel1_test$Viterbi_P_values <- report_runmodel1_test$Viterbi_P_values%>%
+  gsub("[()]"," ",.)
+
+report_runmodel1_test %<>% mutate_each(funs(str_replace_all(., "\"", "")))
+
+# IDs of nodes:(((((Hbta<0>,Hbin<2>)<1>,Bbub<4>)<3>,Chir<6>)<5>,Sscr<8>)<7>,Hsap<10>)<9>
+# (0,2) (1,4) (3,6) (5,8) (7,10)
+
+report_runmodel1_test <- report_runmodel1_test[,c("FAMILY","Family_wide_P_value")]%>%cbind(read.table(text = report_runmodel1_test$Viterbi_P_values, sep = ",", colClasses = "character"))%>%
+  as.data.frame()%>%
+  set_colnames(c("PTHR_ID","Family_p_value", "Hbta", "Hbin", "Hbta_Hbin", "Bbub", "Hbta_Hbin_Bbub", "Chir", "without_Sscr_Hsap", "Sscr", "without_Hsap", "Hsap"))
+
+check_namebranch <- report_runmodel1_test[,c("Hbta", "Hbin", "Hbta_Hbin", "Bbub", "Hbta_Hbin_Bbub", "Chir", "without_Sscr_Hsap", "Sscr", "without_Hsap", "Hsap")]%>%
+  t()%>%
+  as.data.frame()%>%
+  set_colnames("p_values")
+check_namebranch$p_values%<>% as.numeric()
+
+arrange(check_namebranch, p_values)
+
+# FAMILY	Bbub	Chir	Hbin	Hbta	Hsap	Sscr
+# PTHR10015	14 6 8 8 10	29
+# Can see the Sscr(gian) > Bbub(gian) > Chir(lose) > without_Sscr_Hsap (lose)
+```
+
+## Find the branch of Bbub
+```{r}
+# read the cafe output
+report_runmodel1_error <- lapply(list.files("Input/From_CAFE/CAFE_Output_errorcontrol",full.names = TRUE), function(x){read.table(x, skip = 11)})
+
+report_runmodel1_error <- lapply(c(1:10), function(x){
+ report_runmodel1_error[[x]]%<>%
+  set_colnames(c("FAMILY", "Newick_tree", "Family_wide_P_value","Viterbi_P_values"))})
+
+```
+
+```{r}
+# Split the p-values for branches from the tree
+report_runmodel1_error <- lapply(c(1:10),function(x){report_runmodel1_error[[x]] <- report_runmodel1_error[[x]][,c("FAMILY","Family_wide_P_value","Viterbi_P_values")]
+report_runmodel1_error[[x]]$Viterbi_P_values <- report_runmodel1_error[[x]]$Viterbi_P_values%>%
+  gsub("[()]"," ",.)
+report_runmodel1_error[[x]] %<>% mutate_each(funs(str_replace_all(., "\"", "")))
+
+report_runmodel1_error[[x]] <- report_runmodel1_error[[x]][,c("FAMILY","Family_wide_P_value")]%>%cbind(read.table(text = report_runmodel1_error[[x]]$Viterbi_P_values, sep = ",", colClasses = "character"))%>%
+  as.data.frame()%>%
+  set_colnames(c("PTHR_ID","Family_p_value", "Hbta", "Hbin", "Hbta_Hbin", "Bbub", "Hbta_Hbin_Bbub", "Chir", "without_Sscr_Hsap", "Sscr", "without_Hsap", "Hsap"))})
+```
+
+```{r}
+Bbub_report_runmodel1_error <- lapply(c(1:10),function(x){report_runmodel1_error[[x]]%>%
+  subset(Bbub < 0.05)})
+
+# Check MHC gene families.
+lapply(c(1:10),function(x){
+  dim(Bbub_report_runmodel1_error[[x]])})
+
+lapply(c(1:10),function(x){
+  Bbub_report_runmodel1_error[[x]]%>%subset(PTHR_ID %in% "PTHR16675")})
+
+lapply(c(1:10),function(x){
+  Bbub_report_runmodel1_error[[x]]%>%subset(PTHR_ID %in% "PTHR19944")})
+
+# Check the families that consisitly been picked 
+Select_family <- lapply(c(1:10),function(x){c(Bbub_report_runmodel1_error[[x]]$PTHR_ID)})%>%unlist%>%table()
+
+# There are 270 gene families were reported at least 5 times shown up
+Select_family[Select_family>5]%>%dim()
+
+Select_family <- Select_family[Select_family>5]
+
+hist(Select_family)
+```
+
+```{r}
+Select_family <- t(Select_family)%>%
+  as.data.frame()%>%
+  set_colnames(c("Var1","FAMILY", "Freq"))
+
+Select_family[,c("FAMILY", "Freq")]%>%
+  write_csv("Output/CAFE/Buffalo_sig_families.csv")
+```
+
+# Appendix
+
+```{r}
+sessionInfo()
+```
+
+

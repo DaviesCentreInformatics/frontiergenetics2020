@@ -1,0 +1,83 @@
+---
+title: "PAML branch positive selection"
+author: "Kelly Ren"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2: default
+bibliography: FinalthesisRef.bib
+link-citations: yes
+fig_caption: yes
+toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Packages 
+
+```{r}
+library(magrittr)
+library(dplyr)
+library(stringr)
+```
+
+# Analysis
+## read branch selection results
+```{r}
+Likelihood_Alternative_hypothesis <- read.delim("Input/From_PAML/all_results_PAML_Likelihood_Alternative_hypothesis.txt", header = FALSE)%>%
+  as.data.frame()%>%
+  set_colnames(c("ID", "Likelihood_Alternative_hypothesis"))
+
+Likelihood_Alternative_hypothesis$ID <- gsub("all_results/","",Likelihood_Alternative_hypothesis$ID)
+
+# there are 13246 SCO for Alternative_hypothesis
+Likelihood_Alternative_hypothesis$ID%>%length()
+```
+
+```{r}
+Likelihood_Null_hypothesis <- read.delim("Input/From_PAML/all_results_PAML_Likelihood_Null_hypothesis.txt", header = FALSE)%>%
+  as.data.frame()%>%
+  set_colnames(c("ID", "logLikelihood_Null_hypothesis"))
+
+Likelihood_Null_hypothesis$ID <- gsub("all_results/","",Likelihood_Null_hypothesis$ID)
+
+# there are 13246 SCO for Null_hypothesis
+Likelihood_Null_hypothesis$ID%>%length()
+```
+
+## calculate log Likelihood values
+```{r}
+# The Alternative model - Null model
+Sorted_Likelihood_Alternative_hypothesis <- Likelihood_Alternative_hypothesis
+Sorted_Likelihood_Null_hypothesis <- Likelihood_Null_hypothesis
+# Join into one table
+Positive_select <- Sorted_Likelihood_Null_hypothesis%>%
+  left_join(Sorted_Likelihood_Alternative_hypothesis, by = "ID")
+
+Positive_select$logLikelihood_Null_hypothesis <- as.numeric(Positive_select$logLikelihood_Null_hypothesis)
+Positive_select$Likelihood_Alternative_hypothesis <- as.numeric(Positive_select$Likelihood_Alternative_hypothesis)
+
+# Calculate the p values
+Positive_select$log_diff <- 2*(Positive_select$Likelihood_Alternative_hypothesis - Positive_select$logLikelihood_Null_hypothesis)
+Positive_select$p.values <- pchisq(2*(Positive_select$Likelihood_Alternative_hypothesis - Positive_select$logLikelihood_Null_hypothesis),df=1, lower.tail=FALSE)/2
+```
+
+## p adjustment and result saving
+```{r}
+branch_results_Positive_select <- Positive_select%>%
+  mutate(fdr = p.adjust(p.values, "fdr"))%>%
+  dplyr::filter(fdr < 0.05)%>%
+  arrange(fdr)
+
+length(branch_results_Positive_select$ID%>%unique()) #602 Positive slected genes
+match_table_species <- read.csv("Output/CAFE/match_table_species.csv")
+
+results_Positive_select <- branch_results_Positive_select%>%
+  left_join(match_table_species,by = c("ID" = "orthogroup_ID"))%>%
+  set_colnames(c("orthogroup_ID","logLikelihood_Null_hypothesis","Likelihood_Alternative_hypothesis", "log_diff", "p.values", "fdr", "entrezgene_id", "species", "UniProtKB_ID", "PANTHER_ID"))
+
+colnames(results_Positive_select) <- gsub("spc", "species",colnames(results_Positive_select))
+write_csv(results_Positive_select,"Output/PAML/branch_results_Positive_select.csv")
+```
+

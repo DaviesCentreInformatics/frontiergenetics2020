@@ -1,0 +1,266 @@
+---
+title: "PAML_GO_KEGG_Reactome_pathway"
+author: "Kelly Ren"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2: default
+link-citations: yes
+fig_caption: yes
+toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Packages
+```{r}
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(readxl)
+library(gtools)
+library(tibble)
+library(limma)
+library(ReactomePA)
+library(clusterProfiler)
+```
+
+## human database
+```{r}
+#ah <- AnnotationHub()
+#saveRDS(ah,"All_annotation.rds")
+ah <- read_rds("/Users/kellydren/Documents/Kelly_annotation/All_annotation.rds") 
+ensDb <- ah[["AH83216"]]
+ensDb
+# Homo sapiens
+```
+
+```{r}
+genesGR <- GenomicFeatures::genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+
+```{r}
+human_ALL_entrezID <- genesGR %>% 
+  subset(!is.na(entrezid)) %>%
+  mcols() %>%
+  .[["entrezid"]] %>%
+  unlist() %>%
+  unique() 
+```
+
+# results positive select
+## human
+
+```{r}
+results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
+  as.data.frame()%>%
+  subset(species %in% "Hsap")
+```
+
+```{r}
+results_Positive_select$entrezgene_id <- results_Positive_select$entrezgene_id%>%as.character()
+results_Positive_select <- results_Positive_select%>%
+  left_join(Genes, by = c("entrezgene_id" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+```
+
+#### GO
+```{r GO pathway}
+goRes <- goana(results_Positive_select$entrezgene_id, human_ALL_entrezID, species = "Hs")
+
+human_goRes <- goRes%>%
+  rownames_to_column("GO_ID")%>%
+  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+human_goRes%>%
+  dim()
+
+human_goRes%>%
+  as.data.frame()
+```
+
+#### KEGG
+```{r  KEGG pathway}
+keggRes <- kegga(results_Positive_select$entrezgene_id, human_ALL_entrezID, species = "Hs") # for KEGG pathway
+
+human_keggRes <- keggRes%>% 
+  rownames_to_column("KEGG_ID")%>%
+  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+human_keggRes
+```
+
+### Reactome
+
+```{r}
+sigSite_enrichPath <- enrichPathway(gene=results_Positive_select$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
+
+# NULL sig term
+cnetplot(sigSite_enrichPath, node_label = 'none')
+```
+
+## cattle database (No Reactome term)
+
+```{r}
+results_Positive_select <- read_csv("branch_results_Positive_select.csv")%>%
+  as.data.frame()%>%
+  subset(species %in% "Hbta")
+
+results_Positive_select$ToEntrez <- results_Positive_select$species_ID%>%gsub("_.*","",.)
+```
+
+
+```{r}
+ah <- read_rds("/Users/kellydren/Documents/Kelly_annotation/All_annotation.rds") 
+ensDb <- ah[["AH83145"]]
+ensDb
+```
+
+```{r}
+genesGR <- genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+
+```{r}
+results_Positive_select$ToEntrez <- results_Positive_select$ToEntrez%>%as.character()
+results_Positive_select <- results_Positive_select%>%
+  left_join(Genes, by = c("ToEntrez" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+colnames(results_Positive_select) <- colnames(results_Positive_select)%>%gsub("ToEntrez","entrez",.)
+```
+
+
+```{r}
+cattle_ALL_entrezID <- genesGR %>% 
+  subset(!is.na(entrezid)) %>%
+  mcols() %>%
+  .[["entrezid"]] %>%
+  unlist() %>%
+  unique() 
+```
+
+```{r GO pathway}
+cattle_entrezID <- cattle_ALL_entrezID[cattle_ALL_entrezID %in% results_Positive_select$entrez]
+```
+
+#### GO
+```{r}
+goRes <- goana(cattle_entrezID, cattle_ALL_entrezID, species = "Bt")
+cattle_goRes <- goRes%>%
+  rownames_to_column("GO_ID")%>%
+  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+cattle_goRes%>%dim()
+
+cattle_goRes$GO_ID%>%
+  as.data.frame()
+```
+
+#### KEGG
+```{r  KEGG pathway}
+keggRes <- kegga(cattle_entrezID, cattle_ALL_entrezID, species = "Bt")
+
+cattle_keggRes <- keggRes%>% 
+  rownames_to_column("KEGG_ID")%>%
+  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+cattle_keggRes$GO_ID%>%
+  as.data.frame()
+```
+
+# immune genes in results positive selection results
+
+### all immune genes
+
+```{r}
+results_Positive_select_immune <- read_csv("branch_results_Positive_select_immune.csv")%>%
+  as.data.frame()
+
+results_Positive_select_immune$gene_name%>%
+  unique()%>%
+  length() #206 immune genes
+
+results_Positive_select_immune$ToEntrez%>%
+  unique()
+```
+
+#### GO
+```{r}
+goRes <- goana(results_Positive_select_immune$ToEntrez, results_Positive_select$ToEntrez, species = "Hs")
+
+human_immune_goRes <- goRes%>%
+  rownames_to_column("GO_ID")%>%
+  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+human_immune_goRes%>%
+  dim()
+
+subset(human_immune_goRes, Ont %in% "BP")$GO_ID%>%
+  as.data.frame()
+```
+
+#### KEGG
+```{r  KEGG pathway}
+keggRes <- kegga(results_Positive_select_immune$ToEntrez, results_Positive_select$ToEntrez, species = "Hs") # for KEGG pathway
+
+human_immune_keggRes <- keggRes%>% 
+  rownames_to_column("KEGG_ID")%>%
+  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+human_immune_keggRes
+human_immune_keggRes$KEGG_ID%>%
+  gsub("path:hsa","hsa:",.)%>%
+  as.data.frame()
+```
+
+
+#### Reactome
+
+```{r}
+sigSite_enrichPath <- enrichPathway(gene=results_Positive_select_immune$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.5, readable=T, minGSSize = 3, maxGSSize = 300)
+cnetplot(sigSite_enrichPath)
+```
+```{r}
+sigSite_enrichGO <- enrichGO(gene=results_Positive_select_immune$ToEntrez, pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300,OrgDb='org.Hs.eg.db')
+
+cnetplot(sigSite_enrichGO)
+```
+
+# Appendix
+
+```{r}
+sessionInfo()
+```

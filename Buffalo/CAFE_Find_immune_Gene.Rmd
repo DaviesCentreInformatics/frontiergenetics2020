@@ -1,0 +1,282 @@
+---
+title: "Find immune genes"
+author: "Kelly Ren"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2: default
+bibliography: FinalthesisRef.bib
+link-citations: yes
+fig_caption: yes
+toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+library(tibble)
+```
+
+# Buffalo CAFE PANTHER gene family 
+
+```{r}
+Buffalo_sig_families <- read_csv("Output/CAFE/Buffalo_sig_families.csv")%>%
+  as.data.frame()
+Buffalo_sig_families$FAMILY%>%
+  length()
+```
+
+```{r}
+genes_in_orthogroup_all_species <- read.csv("Output/CAFE/genes_in_orthogroup_all_species.csv")%>%
+  as.data.frame()
+
+# See bufallo genes in those families 
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch <- genes_in_orthogroup_all_species%>%
+  subset(spc %in% "Bbub")%>%
+  subset(PANTHER_ID %in% Buffalo_sig_families$FAMILY)
+
+# There are 39 families no Bbub sequences
+setdiff(Buffalo_sig_families$FAMILY,Bbub_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID)
+
+genes_in_orthogroup_all_species%>%
+  subset(PANTHER_ID %in% setdiff(Buffalo_sig_families$FAMILY,Bbub_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID))
+
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique%>%length()
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique%>%length()
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique%>%length()
+```
+
+## human as reference
+
+```{r}
+# Select the human orthogroup that bufallo has
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch <- genes_in_orthogroup_all_species%>%
+  subset(spc %in% "Hsap")%>%
+  subset(PANTHER_ID %in% Buffalo_sig_families$FAMILY)%>%
+  subset(orthogroup_ID %in% Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID)
+
+# Number of orthogroups for those sig families in bufallo 
+length(unique(Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID))
+
+# Number of orthogroups for those sig families in human can match  
+length(unique(Hsap_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID))
+
+# Number of genes for those sig families in human can match
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch%>%as.data.frame%>%write_csv("Output/CAFE/Hsapref_genes_in_orthogroup_CAFE_Buffalobranch.csv")
+```
+
+```{r}
+#ah <- AnnotationHub()
+#saveRDS(ah,"All_annotation.rds")
+ah <- read_rds("/Users/kellydren/Documents/Kelly_annotation/All_annotation.rds") 
+#subset(ah, rdataclass == "EnsDb" & species == "Homo sapiens")
+ensDb <- ah[["AH83216"]]
+ensDb
+```
+
+```{r}
+genesGR <- GenomicFeatures::genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+# get gene annotation
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+```{r}
+# slecect the human genes in those families
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch$geneID%<>%as.character()
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch <- Hsap_genes_in_orthogroup_CAFE_Buffalobranch%>%
+  left_join(Genes, by = c("geneID" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+```
+
+### Search all immune genes for Human in immune database
+
+
+```{r}
+InnateDB_immune <- read_csv("Input/Immune_gene_ref/InnateDB_genes_all.csv")%>%
+  as.data.frame()
+InnateDB_immune$entrez <- as.character(InnateDB_immune$entrez)
+
+InnateDB_immune$species%>%
+  table() #only contain Homo sapiens and mouse species
+InnateDB_immune_human <- subset(InnateDB_immune,species %in% "Homo sapiens")
+selected_InnateDB_immune_human <- InnateDB_immune_human[,c("id","species","taxonId","ensembl","entrez","name","fullname","synonym","signature","chromStart", "chromEnd", "chromStrand", "chromName", "goTerms","function","humanOrthologs","mouseOrthologs","bovineOrthologs")]
+
+selected_InnateDB_immune_human_MHCGRanges <- selected_InnateDB_immune_human%>%set_colnames(c("id","species","taxonId","ensembl","entrez","name","fullname","synonym","signature","start", "end", "strand", "chr", "goTerms","function","humanOrthologs","mouseOrthologs","bovineOrthologs"))%>%
+  makeGRangesFromDataFrame()
+
+mcols(selected_InnateDB_immune_human_MHCGRanges) <- selected_InnateDB_immune_human
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges <- makeGRangesFromDataFrame(Hsap_genes_in_orthogroup_CAFE_Buffalobranch)
+mcols(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges) <- Hsap_genes_in_orthogroup_CAFE_Buffalobranch
+
+# Overlaps to find the immune genes
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_immune <- Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[queryHits(findOverlaps(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges,selected_InnateDB_immune_human_MHCGRanges)),]
+
+mcols(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_immune)%>%as.data.frame%>%write_csv("Output/CAFE/Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune.csv")
+```
+
+```{r}
+# Found MHC group
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[mcols(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges)$description%>%grep("histocompatibility",.),]
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[mcols(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges)$description%>%grep("histocompatibility",.),]%>%
+  mcols()%>%
+  extract2("PANTHER_ID")%>%
+  unique()
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[mcols(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges)$description%>%grep("histocompatibility",.),]%>%
+  mcols()%>%
+  extract2("gene_name")%>%
+  unique()
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[mcols(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges)$description%>%grep("histocompatibility",.),]%>%
+  mcols()%>%
+  extract2("orthogroup_ID")%>%
+  unique() 
+```
+
+### Search MHC immune genes
+
+```{r}
+# read manual MHC gene coordinates
+Hsap_MHC_species_gene_coordinate <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+  subset(species %in% "Hsap")%>%
+  as.data.frame()
+# Make a grange object for overlap
+Hsap_MHC_species_gene_coordinate_GRanges <- makeGRangesFromDataFrame(Hsap_MHC_species_gene_coordinate)
+mcols(Hsap_MHC_species_gene_coordinate_GRanges) <- Hsap_MHC_species_gene_coordinate
+
+hit_MHC <- findOverlaps(Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges,Hsap_MHC_species_gene_coordinate_GRanges)
+
+# number of MHC genes in ref
+dim(Hsap_MHC_species_gene_coordinate)
+
+# number of MHC genes found in result family
+length(hit_MHC)
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[queryHits(hit_MHC),]
+Hsap_MHC_species_gene_coordinate_GRanges[subjectHits(hit_MHC),]
+
+# number of MHC genes found in result family
+length(hit_MHC)
+
+Hsap_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[queryHits(hit_MHC),]%>%
+  mcols()%>%
+  as.data.frame()
+
+Hsap_MHC_species_gene_coordinate_GRanges[subjectHits(hit_MHC),]%>%
+  as.data.frame()
+```
+
+## Hbta as reference
+
+```{r}
+# Select the cattle orthogroup that bufallo has
+Hbta_genes_in_orthogroup_CAFE_Buffalobranch <- genes_in_orthogroup_all_species%>%
+  subset(spc %in% "Hbta")%>%
+  subset(PANTHER_ID %in% Buffalo_sig_families$FAMILY)%>%
+  subset(orthogroup_ID %in% Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID)
+
+# Number of orthogroups for those sig families in bufallo 
+length(unique(Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID))
+
+# Number of genes for those sig families in bufallo 
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
+
+# Number of orthogroups for those sig families in Hbta can match  
+length(unique(Hbta_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID))
+
+# Number of genes for those sig families in Hbta can match
+Hbta_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
+
+Hbta_genes_in_orthogroup_CAFE_Buffalobranch%>%as.data.frame%>%write_csv("Output/CAFE/Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch.csv")
+```
+
+```{r}
+#ah <- AnnotationHub()
+#saveRDS(ah,"All_annotation.rds")
+ah <- read_rds("/Users/kellydren/Documents/Kelly_annotation/All_annotation.rds") 
+#subset(ah, rdataclass == "EnsDb" & species == "Bos taurus")
+ensDb <- ah[["AH83145"]]
+ensDb
+```
+
+```{r}
+genesGR <- GenomicFeatures::genes(ensDb)
+genesGR
+```
+
+```{r }
+cols2Keep <- c("gene_id","gene_name", "gene_biotype", "description", "entrezid")
+mcols(genesGR) <- mcols(genesGR)[, cols2Keep]
+
+# get gene annotation
+Genes <- genesGR%>%
+  as.data.frame()
+Genes$entrezid <- Genes$entrezid%>%as.character()
+```
+
+```{r}
+# slecect the human genes in those families
+Hbta_genes_in_orthogroup_CAFE_Buffalobranch$geneID%<>%as.character()
+Hbta_genes_in_orthogroup_CAFE_Buffalobranch <- Hbta_genes_in_orthogroup_CAFE_Buffalobranch%>%
+  left_join(Genes, by = c("geneID" = "entrezid"))%>%
+  subset(gene_biotype %in% "protein_coding")
+```
+
+
+### Search MHC immune genes
+
+```{r}
+# GRange of the genes in the sig families 
+Hbta_genes_in_orthogroup_CAFE_Buffalobranch_GRanges <- makeGRangesFromDataFrame(Hbta_genes_in_orthogroup_CAFE_Buffalobranch)
+mcols(Hbta_genes_in_orthogroup_CAFE_Buffalobranch_GRanges) <- Hbta_genes_in_orthogroup_CAFE_Buffalobranch
+```
+
+```{r}
+# read manual MHC gene coordinates
+Hbta_MHC_species_gene_coordinate <- read_csv("Input/Immune_gene_ref/Manul_MHC_species_gene_coordinate_table.csv")%>%
+  subset(species %in% "Btau")%>%
+  as.data.frame()
+# Make a grange object for overlap
+Hbta_MHC_species_gene_coordinate_GRanges <- makeGRangesFromDataFrame(Hbta_MHC_species_gene_coordinate)
+mcols(Hbta_MHC_species_gene_coordinate_GRanges) <- Hbta_MHC_species_gene_coordinate
+
+hit_MHC <- findOverlaps(Hbta_genes_in_orthogroup_CAFE_Buffalobranch_GRanges,Hbta_MHC_species_gene_coordinate_GRanges)
+
+# number of MHC genes in ref
+dim(Hbta_MHC_species_gene_coordinate)
+
+# number of MHC genes found in result family
+length(hit_MHC)
+
+Hbta_genes_in_orthogroup_CAFE_Buffalobranch_GRanges[queryHits(hit_MHC),]%>%
+  mcols()%>%
+  as.data.frame()
+
+Hbta_MHC_species_gene_coordinate_GRanges[subjectHits(hit_MHC),]%>%
+  as.data.frame()
+```
+
+# Appendix
+
+```{r}
+sessionInfo()
+```

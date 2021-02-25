@@ -1,0 +1,55 @@
+---
+title: "Test cafe model and filter CAFE reusults for immune related"
+author: "Kelly Ren"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2: default
+  ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+```{r}
+#------------------------------------------------------
+# Program name: Test_cafe_model_filter_for_immune.Rmd
+# Objective: Differnet model avaliable when running cafe. The 2*(global_lnL−multi_lnL) was built to prove the correct lambda. The second part collect the CAFE results and filter for immune genes.
+# Author: Lloyd Low and Kelly Ren
+# Email add: lloydlow@hotmail.com
+#------------------------------------------------------
+```
+
+
+
+```{r}
+library(ggplot2)
+library(easyGgplot2)
+library(magrittr)
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyverse)
+library(readxl)
+library(gtools)
+library(tibble)
+library(reshape2)
+library(GenomicFeatures)
+
+'%!in%' <- function(x,y)!('%in%'(x,y))
+```
+
+# Test different model
+
+Use R script (lhtest.R) to plot the distribution of 2*(global_lnL−multi_lnL) and prove the global lambda is the best to use.
+The lhtest.R can be download from CAFE https://iu.app.box.com/v/cafetutorial-files/folder/22161185988
+
+# error correction
+
+```{r}
+caferror_default_output <- read.table("Input/From_CAFE/caferror_default_output.txt",header = T)
+min_Score <- min(caferror_default_output$Score)
+subset(caferror_default_output, Score %in% min_Score) 
+# The min score of caferror_default_output corresponding to the best modle to use for error correction
+# So we go back to CAFE error contro result find the file cafe_errormodel_0.179832458496.txt as error model
+```
