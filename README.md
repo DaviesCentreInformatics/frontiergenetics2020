@@ -1,5 +1,6 @@
 # Analysis of river buffalo gene gains/losses and positive selection
 The upstream synteny pipeline <https://gitlab.com/sandve-lab/salmonid_synteny> that includes OrthoFinder was run for six species: 
+
 river buffalo <https://www.ncbi.nlm.nih.gov/assembly/GCF_003121395.1/> (Low et al., 2019), 
 goat <https://www.ncbi.nlm.nih.gov/assembly/GCF_001704415.1/> (Bickhart et al., 2017), 
 pig <https://www.ncbi.nlm.nih.gov/assembly/GCF_000003025.6/> (Warr et al., 2019), 
