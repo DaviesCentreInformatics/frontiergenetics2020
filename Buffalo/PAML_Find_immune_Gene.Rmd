@@ -107,10 +107,12 @@ mcols(selected_InnateDB_immune_human_MHCGRanges) <- selected_InnateDB_immune_hum
 human_results_Positive_select_GRanges <- makeGRangesFromDataFrame(human_results_Positive_select)
 mcols(human_results_Positive_select_GRanges) <- human_results_Positive_select
 
+write_csv(as.data.frame(mcols(human_results_Positive_select_GRanges))[,c(1,2,3,4,5,6,7,8,17)]%>%unique()%>%drop_na(),"Output/PAML/humanref_results_Positive_select_GRanges.csv")
+
 # Overlaps to find the immune genes
 human_results_Positive_select_immune <- human_results_Positive_select_GRanges[queryHits(findOverlaps(human_results_Positive_select_GRanges,selected_InnateDB_immune_human_MHCGRanges)),]
 
-human_results_Positive_select_immune$ID%>%unique()%>%length()
+human_results_Positive_select_immune$orthogroup_ID%>%unique()%>%length()
 
 # output the Positive_select results for immune gene only
 write_csv(as.data.frame(mcols(human_results_Positive_select_immune)),"Output/PAML/humanref_results_Positive_select_immune.csv")

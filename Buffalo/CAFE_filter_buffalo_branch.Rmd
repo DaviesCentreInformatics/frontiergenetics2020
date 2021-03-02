@@ -150,9 +150,74 @@ hist(Select_family)
 Select_family <- t(Select_family)%>%
   as.data.frame()%>%
   set_colnames(c("Var1","FAMILY", "Freq"))
+```
+## Check gains or losses
+### Compare to all species 
 
+```{r}
+# read the count table
+com_cafe_input_data <- read_delim("Output/CAFE/com_cafe_input_data.txt", delim = ",")%>%
+  as.data.frame()
+
+Bbub_com_cafe_input_data <- subset(com_cafe_input_data, FAMILY %in% Select_family$FAMILY)
+
+# In all, 39 no buffalo sequence
+(Bbub_com_cafe_input_data$Bbub <= 0)%>%table()
+
+Bbub_com_cafe_input_data$average <- Bbub_com_cafe_input_data[,c(3,4,5,6,7,8)]%>%apply(MARGIN = 1,FUN = function(x){sum(x)/6})
+
+Bbub_com_cafe_input_data$cattle_ave <- Bbub_com_cafe_input_data[,c(5,6)]%>%apply(MARGIN = 1,FUN = function(x){sum(x)/2})
+
+# Compare to all 
+(Bbub_com_cafe_input_data$Bbub < Bbub_com_cafe_input_data$average)%>%table()
+# FALSE  TRUE 
+#   172    98 
+
+# Compare to cattle 
+(Bbub_com_cafe_input_data$Bbub < Bbub_com_cafe_input_data$cattle_ave)%>%table()
+
+# FALSE  TRUE 
+#   174    96 
+
+# Save the families for 172 gains (There are 2 euqual)
 Select_family[,c("FAMILY", "Freq")]%>%
-  write_csv("Output/CAFE/Buffalo_sig_families.csv")
+  subset(FAMILY %in% c(Bbub_com_cafe_input_data[(Bbub_com_cafe_input_data$Bbub > Bbub_com_cafe_input_data$cattle_ave),]%>%extract2("FAMILY")))%>%
+  write_csv("Output/CAFE/Buffalo_sig_families_gains.csv")
+
+
+# Save the families for 96 losses
+Select_family[,c("FAMILY", "Freq")]%>%
+  subset(FAMILY %in% c(Bbub_com_cafe_input_data[(Bbub_com_cafe_input_data$Bbub < Bbub_com_cafe_input_data$cattle_ave),]%>%extract2("FAMILY")))%>%
+  write_csv("Output/CAFE/Buffalo_sig_families_losses.csv")
+
+```
+
+### Compare to all cattles 
+#### losses
+```{r}
+Bbub_com_cafe_input_data_losses <- Bbub_com_cafe_input_data[(Bbub_com_cafe_input_data$Bbub < Bbub_com_cafe_input_data$cattle_ave),]
+
+# calculate losses values
+Bbub_com_cafe_input_data_losses$losses_value <- as.numeric(abs(Bbub_com_cafe_input_data_losses$Bbub - Bbub_com_cafe_input_data_losses$cattle_ave)/Bbub_com_cafe_input_data_losses$cattle_ave)
+
+# filter by losses_value > 0.1 and at least 2 differences
+Bbub_com_cafe_input_data_losses[abs(Bbub_com_cafe_input_data_losses$Bbub - Bbub_com_cafe_input_data_losses$cattle_ave) > 2,]%>%arrange(desc(losses_value))%>%filter(losses_value > 0.1)
+
+Bbub_com_cafe_input_data_losses[abs(Bbub_com_cafe_input_data_losses$Bbub - Bbub_com_cafe_input_data_losses$cattle_ave) > 2,]%>%arrange(desc(losses_value))%>%filter(losses_value > 0.1)%>%write_csv("Output/CAFE/counts_sig_losses_buffalo_branch.csv")
+```
+
+#### gains
+
+```{r}
+Bbub_com_cafe_input_data_gains <- Bbub_com_cafe_input_data[(Bbub_com_cafe_input_data$Bbub > Bbub_com_cafe_input_data$cattle_ave),]
+
+# calculate gains values
+Bbub_com_cafe_input_data_gains$gains_value <- as.numeric(abs(Bbub_com_cafe_input_data_gains$Bbub - Bbub_com_cafe_input_data_gains$cattle_ave)/Bbub_com_cafe_input_data_gains$cattle_ave)
+
+# filter by losses_value > 0.1 and at least 2 differences
+Bbub_com_cafe_input_data_gains[abs(Bbub_com_cafe_input_data_gains$Bbub - Bbub_com_cafe_input_data_gains$cattle_ave) > 2,]%>%arrange(desc(gains_value))%>%filter(gains_value > 0.1)
+
+Bbub_com_cafe_input_data_gains[abs(Bbub_com_cafe_input_data_gains$Bbub - Bbub_com_cafe_input_data_gains$cattle_ave) > 2,]%>%arrange(desc(gains_value))%>%filter(gains_value > 0.1)%>%write_csv("Output/CAFE/counts_sig_gains_buffalo_branch.csv")
 ```
 
 # Appendix

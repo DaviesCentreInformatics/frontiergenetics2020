@@ -24,10 +24,22 @@ library(tibble)
 # Buffalo CAFE PANTHER gene family 
 
 ```{r}
-Buffalo_sig_families <- read_csv("Output/CAFE/Buffalo_sig_families.csv")%>%
+# gains
+Buffalo_sig_families_gains <- read_csv("Output/CAFE/Buffalo_sig_families_gains.csv")%>%
   as.data.frame()
-Buffalo_sig_families$FAMILY%>%
+Buffalo_sig_families_gains$FAMILY%>%
   length()
+```
+
+```{r}
+# losses
+Buffalo_sig_families_losses <- read_csv("Output/CAFE/Buffalo_sig_families_losses.csv")%>%
+  as.data.frame()
+Buffalo_sig_families_losses$FAMILY%>%
+  length()
+```
+```{r}
+Buffalo_sig_families <- rbind(Buffalo_sig_families_gains,Buffalo_sig_families_losses)
 ```
 
 ```{r}
@@ -48,7 +60,21 @@ genes_in_orthogroup_all_species%>%
 Bbub_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique%>%length()
 Bbub_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique%>%length()
 Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique%>%length()
+
+
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_gians <- subset(Bbub_genes_in_orthogroup_CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_gains$FAMILY)
+
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_gians$PANTHER_ID%>%unique%>%length()
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_gians$geneID%>%unique%>%length()
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_gians$orthogroup_ID%>%unique%>%length()
+
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_losses <- subset(Bbub_genes_in_orthogroup_CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_losses$FAMILY)
+
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_losses$PANTHER_ID%>%unique%>%length()
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_losses$geneID%>%unique%>%length()
+Bbub_genes_in_orthogroup_CAFE_Buffalobranch_losses$orthogroup_ID%>%unique%>%length()
 ```
+
 
 ## human as reference
 

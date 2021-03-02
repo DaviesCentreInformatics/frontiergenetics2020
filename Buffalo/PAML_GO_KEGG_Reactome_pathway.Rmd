@@ -73,7 +73,7 @@ head(humanref_results_Positive_select)
 
 #### GO
 ```{r GO pathway}
-goRes <- goana(humanref_results_Positive_select$entrezgene_id, human_ALL_entrezID, species = "Hs")
+goRes <- goana(unique(humanref_results_Positive_select$entrezgene_id), human_ALL_entrezID, species = "Hs")
 
 human_goRes <- goRes%>%
   rownames_to_column("GO_ID")%>%

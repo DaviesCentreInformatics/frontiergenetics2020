@@ -73,12 +73,12 @@ cattle_ALL_entrezID <- genesGR %>%
 ```
 
 ## Buffalo CAFE PANTHER gene family 
-### Check all 270 families
+### Check all 172 gains families
 
 ```{r}
-Buffalo_sig_families <- read_csv("Output/CAFE/Buffalo_sig_families.csv")%>%
+Buffalo_sig_families_gains <- read_csv("Output/CAFE/Buffalo_sig_families_gains.csv")%>%
   as.data.frame()
-Buffalo_sig_families$FAMILY%>%
+Buffalo_sig_families_gains$FAMILY%>%
   length()
 ```
 
@@ -92,9 +92,12 @@ Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique%>%length()
 
 CAFE_Buffalobranch <- Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch%>%split(Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID)
 
+# Pick one gene for each family only
 CAFE_Buffalobranch <- lapply(c(1:length(CAFE_Buffalobranch)), function(x){
   CAFE_Buffalobranch[[x]][1,]
 })%>%do.call("rbind",.)
+
+CAFE_Buffalobranch <- subset(CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_gains$FAMILY)
 
 CAFE_Buffalobranch$PANTHER_ID%>%length()
 CAFE_Buffalobranch$geneID%>%length()
@@ -133,16 +136,6 @@ cattle_keggRes%>%
 cattle_keggRes
 ```
 
-#### Reactome
-```{r}
-
-CAFE_Buffalobranch_enrichPath <- enrichPathway(gene=CAFE_Buffalobranch$geneID, pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
-
-#cnetplot(CAFE_Buffalobranch_enrichPath, categorySize="pvalue", node_label = 'category')
-#cnetplot(CAFE_Buffalobranch_enrichPath, categorySize="pvalue", node_label = 'gene')
-
-#summary(CAFE_Buffalobranch_enrichPath)
-```
 
 ## results cattle genes in sig bafallo orthogroup
 
@@ -150,6 +143,14 @@ CAFE_Buffalobranch_enrichPath <- enrichPathway(gene=CAFE_Buffalobranch$geneID, p
 Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch <- read_csv("Output/CAFE/Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch.csv")%>%
   as.data.frame()
 
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique()%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
+
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch <- subset(Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_gains$FAMILY)
+
+
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
 Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique()%>%length()
 Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
 ```
@@ -194,8 +195,26 @@ Hsapref_genes_in_orthogroup_CAFE_Buffalobranch <- read_csv("Output/CAFE/Hsapref_
 
 Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique()%>%length()
 Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
-```
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
 
+# Select for familis of gains
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains <- subset(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_gains$FAMILY)
+
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains$orthogroup_ID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains$geneID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains$PANTHER_ID%>%unique()%>%length()
+```
+#### Reactome
+```{r}
+# Didn't report in the paper since cattle is a closer species to buffalo
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains_enrichPath <- enrichPathway(gene=Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains$geneID%>%unique(), pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
+
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains_enrichPath, categorySize="pvalue", node_label = 'category')
+
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains_enrichPath, categorySize="pvalue", node_label = 'gene')
+
+summary(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_gains_enrichPath)
+```
 ## results human immune genes in sig families
 
 ```{r}
@@ -206,11 +225,19 @@ Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$orthogroup_ID%>%unique()%>
 Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$geneID%>%unique()%>%length()
 Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$PANTHER_ID%>%unique()%>%length()
 
+
+# select for gains
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains <- subset(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune, PANTHER_ID %in% Buffalo_sig_families_gains$FAMILY)
+
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains$orthogroup_ID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains$geneID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains$PANTHER_ID%>%unique()%>%length()
+
 ```
 
 #### GO
 ```{r}
-goRes <- goana(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$geneID%>%unique(), Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID, species = "Hs")
+goRes <- goana(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains$geneID%>%unique(), Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID, species = "Hs")
 
 human_goRes <- goRes%>%
   rownames_to_column("GO_ID")%>%
@@ -226,7 +253,7 @@ human_goRes
 
 #### KEGG
 ```{r  KEGG pathway}
-keggRes <- kegga(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$geneID%>%unique(), Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID, species = "Hs") 
+keggRes <- kegga(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains$geneID%>%unique(), Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID, species = "Hs") 
 
 cattle_keggRes <- keggRes%>% 
   rownames_to_column("KEGG_ID")%>%
@@ -243,12 +270,215 @@ cattle_keggRes
 #### Reactome
 ```{r}
 
-Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_enrichPath <- enrichPathway(gene=Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$geneID%>%unique(), pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains_enrichPath <- enrichPathway(gene=Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$geneID%>%unique(), pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
 
-cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_enrichPath, categorySize="pvalue", node_label = 'category', showCategory = 25)
-cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_enrichPath, categorySize="pvalue", node_label = 'gene', showCategory = 25)
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains_enrichPath, categorySize="pvalue", node_label = 'category', showCategory = 5)
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains_enrichPath, categorySize="pvalue", node_label = 'gene', showCategory = 5)
 
-summary(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_enrichPath)
+summary(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_gains_enrichPath)
+```
+
+### Check all 96 losses families
+
+```{r}
+Buffalo_sig_families_losses <- read_csv("Output/CAFE/Buffalo_sig_families_losses.csv")%>%
+  as.data.frame()
+Buffalo_sig_families_losses$FAMILY%>%
+  length()
+```
+
+```{r}
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch <- read_csv("Output/CAFE/Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch.csv")%>%
+  as.data.frame()
+
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique%>%length()
+
+CAFE_Buffalobranch <- Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch%>%split(Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID)
+
+# Pick one gene for each family only
+CAFE_Buffalobranch <- lapply(c(1:length(CAFE_Buffalobranch)), function(x){
+  CAFE_Buffalobranch[[x]][1,]
+})%>%do.call("rbind",.)
+
+CAFE_Buffalobranch <- subset(CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_losses$FAMILY)
+
+CAFE_Buffalobranch$PANTHER_ID%>%length()
+CAFE_Buffalobranch$geneID%>%length()
+CAFE_Buffalobranch$orthogroup_ID%>%length()
+```
+
+##### GO
+```{r}
+goRes <- goana(CAFE_Buffalobranch$geneID, cattle_ALL_entrezID, species = "Bt")
+
+cattle_goRes <- goRes%>%
+  rownames_to_column("GO_ID")%>%
+  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+cattle_goRes%>%
+  dim()
+
+cattle_goRes
+```
+
+##### KEGG
+```{r  KEGG pathway}
+keggRes <- kegga(CAFE_Buffalobranch$geneID, cattle_ALL_entrezID, species = "Bt") 
+
+cattle_keggRes <- keggRes%>% 
+  rownames_to_column("KEGG_ID")%>%
+  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+cattle_keggRes%>%
+  dim()
+
+cattle_keggRes
+```
+
+
+## results cattle genes in sig bafallo orthogroup
+
+```{r}
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch <- read_csv("Output/CAFE/Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch.csv")%>%
+  as.data.frame()
+
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique()%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
+
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch <- subset(Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_losses$FAMILY)
+
+
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique()%>%length()
+Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
+```
+
+#### GO
+```{r}
+goRes <- goana(Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique(), cattle_ALL_entrezID, species = "Bt")
+
+cattle_goRes <- goRes%>%
+  rownames_to_column("GO_ID")%>%
+  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+cattle_goRes%>%
+  dim()
+
+cattle_goRes
+```
+
+#### KEGG
+```{r  KEGG pathway}
+keggRes <- kegga(Hbtaref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique(), cattle_ALL_entrezID, species = "Bt") 
+
+cattle_keggRes <- keggRes%>% 
+  rownames_to_column("KEGG_ID")%>%
+  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+cattle_keggRes%>%
+  dim()
+
+cattle_keggRes
+```
+
+## results human genes in sig families
+
+```{r}
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch <- read_csv("Output/CAFE/Hsapref_genes_in_orthogroup_CAFE_Buffalobranch.csv")%>%
+  as.data.frame()
+
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
+
+# select fo losses
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses <- subset(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch, PANTHER_ID %in% Buffalo_sig_families_losses$FAMILY)
+
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses$orthogroup_ID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses$geneID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses$PANTHER_ID%>%unique()%>%length()
+```
+#### Reactome
+```{r}
+# Didn't report in the paper since cattle is a closer species to buffalo
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses_enrichPath <- enrichPathway(gene=Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses$geneID%>%unique(), pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
+
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses, categorySize="pvalue", node_label = 'category')
+
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses, categorySize="pvalue", node_label = 'gene')
+```
+
+## results human immune genes in sig families
+
+```{r}
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune <- read_csv("Output/CAFE/Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune.csv")%>%
+  as.data.frame()
+
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$orthogroup_ID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$geneID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune$PANTHER_ID%>%unique()%>%length()
+
+# Select losses in immune
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses <- subset(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune, PANTHER_ID %in% Buffalo_sig_families_losses$FAMILY)
+
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses$orthogroup_ID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses$geneID%>%unique()%>%length()
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses$PANTHER_ID%>%unique()%>%length()
+
+```
+
+#### GO
+```{r}
+goRes <- goana(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses$geneID%>%unique(), Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID, species = "Hs")
+
+human_goRes <- goRes%>%
+  rownames_to_column("GO_ID")%>%
+  mutate(fdr = p.adjust(P.DE, "fdr"))%>%
+  subset(fdr < 0.05)%>%
+  arrange(fdr)
+
+human_goRes%>%
+  dim()
+
+human_goRes
+```
+
+#### KEGG
+```{r  KEGG pathway}
+keggRes <- kegga(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses$geneID%>%unique(), Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID, species = "Hs") 
+
+cattle_keggRes <- keggRes%>% 
+  rownames_to_column("KEGG_ID")%>%
+  mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
+  subset(fdr < 0.01)%>%
+  arrange(fdr)
+
+cattle_keggRes%>%
+  dim()
+
+cattle_keggRes
+```
+
+#### Reactome
+```{r}
+
+Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses_enrichPath <- enrichPathway(gene=Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses$geneID%>%unique(), pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
+
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses_enrichPath, categorySize="pvalue", node_label = 'category', showCategory = 5)
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses_enrichPath, categorySize="pvalue", node_label = 'gene', showCategory = 5)
+
+summary(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses_enrichPath)
 ```
 
 # Appendix
