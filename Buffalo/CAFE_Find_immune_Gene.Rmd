@@ -82,8 +82,8 @@ Bbub_genes_in_orthogroup_CAFE_Buffalobranch_losses$orthogroup_ID%>%unique%>%leng
 # Select the human orthogroup that bufallo has
 Hsap_genes_in_orthogroup_CAFE_Buffalobranch <- genes_in_orthogroup_all_species%>%
   subset(spc %in% "Hsap")%>%
-  subset(PANTHER_ID %in% Buffalo_sig_families$FAMILY)%>%
-  subset(orthogroup_ID %in% Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID)
+  subset(PANTHER_ID %in% Buffalo_sig_families$FAMILY)
+ # subset(orthogroup_ID %in% Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID)
 
 # Number of orthogroups for those sig families in bufallo 
 length(unique(Bbub_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID))
@@ -93,7 +93,6 @@ length(unique(Hsap_genes_in_orthogroup_CAFE_Buffalobranch$orthogroup_ID))
 
 # Number of genes for those sig families in human can match
 Hsap_genes_in_orthogroup_CAFE_Buffalobranch$geneID%>%unique()%>%length()
-
 Hsap_genes_in_orthogroup_CAFE_Buffalobranch$PANTHER_ID%>%unique()%>%length()
 
 Hsap_genes_in_orthogroup_CAFE_Buffalobranch%>%as.data.frame%>%write_csv("Output/CAFE/Hsapref_genes_in_orthogroup_CAFE_Buffalobranch.csv")

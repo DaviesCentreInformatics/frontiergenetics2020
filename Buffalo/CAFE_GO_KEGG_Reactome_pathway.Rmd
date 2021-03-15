@@ -414,9 +414,10 @@ Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses$PANTHER_ID%>%unique()%>%le
 # Didn't report in the paper since cattle is a closer species to buffalo
 Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses_enrichPath <- enrichPathway(gene=Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses$geneID%>%unique(), pAdjustMethod="fdr", qvalueCutoff=0.05, readable=T, minGSSize = 3, maxGSSize = 300)
 
-cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses, categorySize="pvalue", node_label = 'category')
+summary(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses_enrichPath)
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses_enrichPath, categorySize="pvalue", node_label = 'category')
 
-cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses, categorySize="pvalue", node_label = 'gene')
+cnetplot(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_losses_enrichPath, categorySize="pvalue", node_label = 'gene')
 ```
 
 ## results human immune genes in sig families
@@ -458,16 +459,16 @@ human_goRes
 ```{r  KEGG pathway}
 keggRes <- kegga(Hsapref_genes_in_orthogroup_CAFE_Buffalobranch_immune_losses$geneID%>%unique(), Hsapref_genes_in_orthogroup_CAFE_Buffalobranch$geneID, species = "Hs") 
 
-cattle_keggRes <- keggRes%>% 
+human_keggRes <- keggRes%>% 
   rownames_to_column("KEGG_ID")%>%
   mutate(fdr = p.adjust(P.DE, method = "fdr"))%>%
-  subset(fdr < 0.01)%>%
+  subset(fdr < 0.05)%>%
   arrange(fdr)
 
-cattle_keggRes%>%
+human_keggRes%>%
   dim()
 
-cattle_keggRes
+human_keggRes
 ```
 
 #### Reactome

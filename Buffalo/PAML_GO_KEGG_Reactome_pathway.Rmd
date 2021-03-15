@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 # Packages
 ```{r}
+library(readr)
 library(magrittr)
 library(dplyr)
 library(stringr)
@@ -159,7 +160,7 @@ human_immune_keggRes$KEGG_ID%>%
 ```{r}
 results_Positive_select_immune_enrichPath <- enrichPathway(gene=results_Positive_select_immune$entrez, pAdjustMethod="fdr", qvalueCutoff=0.5, readable=T, minGSSize = 3, maxGSSize = 300)
 
-cnetplot(results_Positive_select_immune_enrichPath)
+cnetplot(results_Positive_select_immune_enrichPath,categorySize="pvalue")
 summary(results_Positive_select_immune_enrichPath)
 ```
 
