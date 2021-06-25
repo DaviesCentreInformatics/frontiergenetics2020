@@ -28,5 +28,3 @@ Inside the Buffalo folder, you will find the script in R markdown format and ass
   This script imports the blast results of _Babesia ovata_ (GBE63528.1) against the six species genomes.
   Calculate and visualize the blast hits for each species.
   Additionally, the results of MHC were compared to that obtained from manual curation (Babesia_orf2_tblastn.Rmd).
-
-test 
